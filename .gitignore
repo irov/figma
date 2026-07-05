@@ -1,0 +1,16 @@
+build/*
+!build/*/
+!build/**/*.sh
+solutions/
+.vscode/
+.DS_Store
+*.user
+*.xcworkspace
+*.xcodeproj
+thirdparty/freetype/
+thirdparty/graphics/
+thirdparty/json/
+thirdparty/kiwi/
+thirdparty/libjpeg/
+thirdparty/libpng/
+*.code-workspace

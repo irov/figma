@@ -1,0 +1,32 @@
+#! /bin/bash
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPOSITORY_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+if test -z "$CMAKE"; then
+    CMAKE=cmake
+fi
+
+CONFIGURATION=$1
+if test -z "$CONFIGURATION"; then
+    CONFIGURATION=Debug
+else
+    shift
+fi
+
+SOLUTION_NAME=solution_xcode_macos
+SOLUTION_DIR="$REPOSITORY_DIR/solutions/$SOLUTION_NAME/$CONFIGURATION"
+
+if test ! -f "$SOLUTION_DIR/CMakeCache.txt"; then
+    sh "$SCRIPT_DIR/make_solution_xcode_macos.sh" "$CONFIGURATION"
+fi
+
+if test "$#" -eq 0; then
+    "$CMAKE" --build "$SOLUTION_DIR" --config "$CONFIGURATION"
+else
+    "$CMAKE" --build "$SOLUTION_DIR" --config "$CONFIGURATION" --target "$@"
+fi
+
+exit 0
