@@ -12,4 +12,7 @@
 @property(nonatomic) CGFloat viewportHeight;
 - (void)configureWithDocument:(Figma::DocumentInterface *)_newDocument player:(Figma::PlayerInterface *)_newPlayer viewportWidth:(CGFloat)_newViewportWidth viewportHeight:(CGFloat)_newViewportHeight;
 - (void)advancePlaybackBy:(NSTimeInterval)_dt;
+- (NSArray<NSString *> *)collectMissingFontDescriptions;
+- (NSArray<NSString *> *)fontSearchDirectories;
+- (void)addFontSearchDirectory:(NSString *)_directory;
 @end

@@ -21,6 +21,12 @@ public:
 
     void drawText(const Figma::RenderCommand & _command, NSRect _rect);
     bool makeTextPixels(const Figma::RenderCommand & _command, NSSize _pointSize, CGFloat _rasterScale, std::vector<std::uint8_t> * const _pixels, NSUInteger * const _width, NSUInteger * const _height);
+    void addFontSearchDirectory(NSString * _directory);
+    void clearFontCache();
+    void clearMissingFonts();
+    void collectMissingFonts(const Figma::RenderCommandVector & _commands);
+    NSArray<NSString *> * missingFontDescriptions() const;
+    NSArray<NSString *> * fontSearchDirectories() const;
 
 protected:
     void drawTextAtRasterScale(const Figma::RenderCommand & _command, NSRect _rect, CGFloat _rasterScale);
@@ -45,10 +51,10 @@ protected:
     static bool faceMatches(FT_Face _face, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);
     FT_Face openFaceAtPath(NSString * _path, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);
     FT_Face openMatchingFaceInDirectory(NSString * _directory, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);
+    static NSArray<NSString *> * environmentFontSearchDirectories();
     static NSArray<NSString *> * defaultFontSearchDirectories();
-    static NSArray<NSString *> * fontSearchDirectories();
     static NSString * fontRequestDescription(const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);
-    void logMissingFont(const Figma::RenderCommand & _command, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName) const;
+    void recordMissingFont(const Figma::RenderCommand & _command, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);
     FT_Face openConfiguredOrSystemFace(const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);
     FT_Face openFaceForCommand(const Figma::RenderCommand & _command);
     void drawDecodedLines(FT_Face _face, const Figma::RenderCommand & _command, NSRect _rect, CGFloat _rasterScale);
@@ -59,4 +65,6 @@ protected:
 protected:
     FT_Library m_library = nullptr;
     std::unordered_map<std::string, FT_Face> m_faces;
+    std::unordered_map<std::string, std::string> m_missingFonts;
+    std::vector<std::string> m_fontDirectories;
 };

@@ -655,8 +655,8 @@ struct Uniforms
     uint hasTexture;
     uint shape;
     uint blendMode;
-    uint pad0;
-    float3 pad1;
+    uint4 pad0;
+    float4 pad1;
 };
 
 struct VertexOut

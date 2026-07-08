@@ -23,6 +23,13 @@ namespace
     }
 
     //////////////////////////////////////////////////////////////////////////
+    static std::string stdString(NSString * _value)
+    {
+        const char * const value = _value.UTF8String;
+        return value != nullptr ? std::string(value) : std::string();
+    }
+
+    //////////////////////////////////////////////////////////////////////////
     static NSCompositingOperation compositingOperationForCommand(const Figma::RenderCommand & _command)
     {
         switch(_command.blendMode)
@@ -92,13 +99,7 @@ FreeTypeTextRenderer::FreeTypeTextRenderer()
 //////////////////////////////////////////////////////////////////////////
 FreeTypeTextRenderer::~FreeTypeTextRenderer()
 {
-    for(auto & entry : m_faces)
-    {
-        if(entry.second != nullptr)
-        {
-            FT_Done_Face(entry.second);
-        }
-    }
+    this->clearFontCache();
 
     if(m_library != nullptr)
     {
@@ -149,6 +150,104 @@ bool FreeTypeTextRenderer::makeTextPixels(const Figma::RenderCommand & _command,
     *_width = pixelWidth;
     *_height = pixelHeight;
     return true;
+}
+
+//////////////////////////////////////////////////////////////////////////
+void FreeTypeTextRenderer::addFontSearchDirectory(NSString * _directory)
+{
+    if(_directory.length == 0)
+    {
+        return;
+    }
+
+    NSString * path = [[_directory stringByExpandingTildeInPath] stringByStandardizingPath];
+    const std::string directory = stdString(path);
+    if(directory.empty() == true)
+    {
+        return;
+    }
+
+    if(std::find(m_fontDirectories.begin(), m_fontDirectories.end(), directory) != m_fontDirectories.end())
+    {
+        return;
+    }
+
+    m_fontDirectories.emplace_back(directory);
+    this->clearFontCache();
+    this->clearMissingFonts();
+}
+
+//////////////////////////////////////////////////////////////////////////
+void FreeTypeTextRenderer::clearFontCache()
+{
+    for(auto & entry : m_faces)
+    {
+        if(entry.second != nullptr)
+        {
+            FT_Done_Face(entry.second);
+        }
+    }
+
+    m_faces.clear();
+}
+
+//////////////////////////////////////////////////////////////////////////
+void FreeTypeTextRenderer::clearMissingFonts()
+{
+    m_missingFonts.clear();
+}
+
+//////////////////////////////////////////////////////////////////////////
+void FreeTypeTextRenderer::collectMissingFonts(const Figma::RenderCommandVector & _commands)
+{
+    this->clearMissingFonts();
+
+    for(const Figma::RenderCommand & command : _commands)
+    {
+        if(command.type != Figma::ERenderCommandType::Text)
+        {
+            continue;
+        }
+
+        (void)this->faceForCommand(command);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
+NSArray<NSString *> * FreeTypeTextRenderer::missingFontDescriptions() const
+{
+    std::vector<std::string> descriptions;
+    descriptions.reserve(m_missingFonts.size());
+
+    for(const auto & entry : m_missingFonts)
+    {
+        descriptions.emplace_back(entry.second);
+    }
+
+    std::sort(descriptions.begin(), descriptions.end());
+
+    NSMutableArray<NSString *> * result = [NSMutableArray arrayWithCapacity:descriptions.size()];
+    for(const std::string & description : descriptions)
+    {
+        [result addObject:[NSString stringWithUTF8String:description.c_str()] ?: @""];
+    }
+
+    return result;
+}
+
+//////////////////////////////////////////////////////////////////////////
+NSArray<NSString *> * FreeTypeTextRenderer::fontSearchDirectories() const
+{
+    NSMutableArray<NSString *> * directories = [NSMutableArray array];
+
+    for(const std::string & directory : m_fontDirectories)
+    {
+        [directories addObject:[NSString stringWithUTF8String:directory.c_str()] ?: @""];
+    }
+
+    [directories addObjectsFromArray:environmentFontSearchDirectories()];
+    [directories addObjectsFromArray:defaultFontSearchDirectories()];
+    return directories;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -641,6 +740,11 @@ FT_Face FreeTypeTextRenderer::faceForCommand(const Figma::RenderCommand & _comma
     auto it = m_faces.find(key);
     if(it != m_faces.end())
     {
+        if(it->second == nullptr)
+        {
+            this->recordMissingFont(_command, stdString(_command.fontPostscriptName), stdString(_command.fontFamily), stdString(_command.fontStyle));
+        }
+
         return it->second;
     }
 
@@ -741,7 +845,7 @@ FT_Face FreeTypeTextRenderer::openFaceAtPath(NSString * _path, const std::string
 FT_Face FreeTypeTextRenderer::openMatchingFaceInDirectory(NSString * _directory, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName)
 {
     NSFileManager * fileManager = [NSFileManager defaultManager];
-    NSArray<NSString *> * files = [fileManager contentsOfDirectoryAtPath:_directory error:nil];
+    NSDirectoryEnumerator<NSString *> * files = [fileManager enumeratorAtPath:_directory];
     for(NSString * file in files)
     {
         NSString * extension = file.pathExtension.lowercaseString;
@@ -762,18 +866,7 @@ FT_Face FreeTypeTextRenderer::openMatchingFaceInDirectory(NSString * _directory,
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSArray<NSString *> * FreeTypeTextRenderer::defaultFontSearchDirectories()
-{
-    return @[
-        @"/System/Library/Fonts/Supplemental",
-        @"/System/Library/Fonts",
-        @"/Library/Fonts",
-        [@"~/Library/Fonts" stringByExpandingTildeInPath],
-    ];
-}
-
-//////////////////////////////////////////////////////////////////////////
-NSArray<NSString *> * FreeTypeTextRenderer::fontSearchDirectories()
+NSArray<NSString *> * FreeTypeTextRenderer::environmentFontSearchDirectories()
 {
     NSMutableArray<NSString *> * directories = [NSMutableArray array];
 
@@ -798,8 +891,18 @@ NSArray<NSString *> * FreeTypeTextRenderer::fontSearchDirectories()
         }
     }
 
-    [directories addObjectsFromArray:defaultFontSearchDirectories()];
     return directories;
+}
+
+//////////////////////////////////////////////////////////////////////////
+NSArray<NSString *> * FreeTypeTextRenderer::defaultFontSearchDirectories()
+{
+    return @[
+        @"/System/Library/Fonts/Supplemental",
+        @"/System/Library/Fonts",
+        @"/Library/Fonts",
+        [@"~/Library/Fonts" stringByExpandingTildeInPath],
+    ];
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -825,12 +928,25 @@ NSString * FreeTypeTextRenderer::fontRequestDescription(const std::string & _pos
 }
 
 //////////////////////////////////////////////////////////////////////////
-void FreeTypeTextRenderer::logMissingFont(const Figma::RenderCommand & _command, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName) const
+void FreeTypeTextRenderer::recordMissingFont(const Figma::RenderCommand & _command, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName)
 {
-    NSLog(@"Figma Viewer missing font for node %@: %@. Install the font in a system font directory or pass a font collection with FIGMA_VIEWER_FONT_DIRS. Search directories: %@",
+    const std::string key = this->fontKeyForCommand(_command);
+    if(key.empty() == true)
+    {
+        return;
+    }
+
+    NSString * description = fontRequestDescription(_postscriptName, _familyName, _styleName);
+    const std::string descriptionString = stdString(description);
+    if(m_missingFonts.emplace(key, descriptionString).second == false)
+    {
+        return;
+    }
+
+    NSLog(@"Figma Viewer missing font for node %@: %@. Install the font in a system font directory, choose a font folder in the viewer, or pass a font collection with FIGMA_VIEWER_FONT_DIRS. Search directories: %@",
           nsString(_command.nodeId),
-          fontRequestDescription(_postscriptName, _familyName, _styleName),
-          [fontSearchDirectories() componentsJoinedByString:@", "]);
+          description,
+          [this->fontSearchDirectories() componentsJoinedByString:@", "]);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -838,7 +954,7 @@ FT_Face FreeTypeTextRenderer::openConfiguredOrSystemFace(const std::string & _po
 {
     NSFileManager * fileManager = [NSFileManager defaultManager];
 
-    for(NSString * directory in fontSearchDirectories())
+    for(NSString * directory in this->fontSearchDirectories())
     {
         BOOL isDirectory = NO;
         if([fileManager fileExistsAtPath:directory isDirectory:&isDirectory] == NO || isDirectory == NO)
@@ -874,7 +990,7 @@ FT_Face FreeTypeTextRenderer::openFaceForCommand(const Figma::RenderCommand & _c
         return face;
     }
 
-    this->logMissingFont(_command, postscriptName, familyName, styleName);
+    this->recordMissingFont(_command, postscriptName, familyName, styleName);
     return nullptr;
 }
 

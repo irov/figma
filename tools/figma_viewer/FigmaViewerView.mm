@@ -143,6 +143,39 @@
 }
 
 //////////////////////////////////////////////////////////////////////////
+- (NSArray<NSString *> *)collectMissingFontDescriptions
+{
+    const Figma::RenderCommandVector * commands = [self renderCommands];
+    if(commands == nullptr)
+    {
+        return @[];
+    }
+
+    FreeTypeTextRenderer * renderer = [self textRenderer];
+    renderer->collectMissingFonts(*commands);
+    return renderer->missingFontDescriptions();
+}
+
+//////////////////////////////////////////////////////////////////////////
+- (NSArray<NSString *> *)fontSearchDirectories
+{
+    return [self textRenderer]->fontSearchDirectories();
+}
+
+//////////////////////////////////////////////////////////////////////////
+- (void)addFontSearchDirectory:(NSString *)_directory
+{
+    [self textRenderer]->addFontSearchDirectory(_directory);
+
+    if(m_metalRenderer != nullptr)
+    {
+        m_metalRenderer->clearTextureCache();
+    }
+
+    [self setNeedsDisplay:YES];
+}
+
+//////////////////////////////////////////////////////////////////////////
 - (void)configureWithDocument:(Figma::DocumentInterface *)_newDocument player:(Figma::PlayerInterface *)_newPlayer viewportWidth:(CGFloat)_newViewportWidth viewportHeight:(CGFloat)_newViewportHeight
 {
     self.document = _newDocument;

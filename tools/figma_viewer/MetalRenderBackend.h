@@ -9,6 +9,7 @@
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -28,11 +29,14 @@ struct MetalUniformDesc
     std::uint32_t hasTexture;
     std::uint32_t shape;
     std::uint32_t blendMode;
-    std::uint32_t pad0;
-    float pad1[3];
+    std::uint32_t pad0[4];
+    float pad1[4];
 };
 
-static_assert(sizeof(MetalUniformDesc) == 64, "Metal uniform layout must stay 16-byte aligned");
+static_assert(sizeof(MetalUniformDesc) == 80, "Metal uniform layout must match Metal shader Uniforms");
+static_assert(offsetof(MetalUniformDesc, commandRect) == 16, "Metal uniform commandRect offset must match Metal shader Uniforms");
+static_assert(offsetof(MetalUniformDesc, pad0) == 48, "Metal uniform pad0 offset must match Metal shader Uniforms");
+static_assert(offsetof(MetalUniformDesc, pad1) == 64, "Metal uniform pad1 offset must match Metal shader Uniforms");
 
 class MetalRenderBackend
 {

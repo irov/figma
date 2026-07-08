@@ -5,6 +5,37 @@
 #include <cstdio>
 #include <string>
 
+//////////////////////////////////////////////////////////////////////////
+static NSString * fontListText(NSArray<NSString *> * _fonts, NSUInteger _maxCount)
+{
+    NSMutableArray<NSString *> * lines = [NSMutableArray array];
+    const NSUInteger fontCount = _fonts.count;
+    const NSUInteger lineCount = std::min<NSUInteger>(fontCount, _maxCount);
+
+    for(NSUInteger index = 0; index != lineCount; ++index)
+    {
+        [lines addObject:[NSString stringWithFormat:@"- %@", _fonts[index]]];
+    }
+
+    if(fontCount > lineCount)
+    {
+        [lines addObject:[NSString stringWithFormat:@"- ... and %lu more", static_cast<unsigned long>(fontCount - lineCount)]];
+    }
+
+    return [lines componentsJoinedByString:@"\n"];
+}
+
+//////////////////////////////////////////////////////////////////////////
+static NSString * missingFontsInformativeText(NSArray<NSString *> * _fonts, NSArray<NSString *> * _directories)
+{
+    NSString * fonts = fontListText(_fonts, 12);
+    NSString * directories = [_directories componentsJoinedByString:@"\n"];
+
+    return [NSString stringWithFormat:@"Missing fonts:\n%@\n\nChoose a folder containing .ttf, .otf, or .ttc files.\n\nCurrent search directories:\n%@",
+                                      fonts,
+                                      directories.length != 0 ? directories : @"<none>"];
+}
+
 @implementation FigmaAppDelegate
 
 //////////////////////////////////////////////////////////////////////////
@@ -85,6 +116,65 @@
 }
 
 //////////////////////////////////////////////////////////////////////////
+- (BOOL)chooseFontDirectoryStartingAtPath:(NSString *)_path
+{
+    NSOpenPanel * panel = [NSOpenPanel openPanel];
+    panel.title = @"Choose Fonts Folder";
+    panel.prompt = @"Use Folder";
+    panel.canChooseFiles = NO;
+    panel.canChooseDirectories = YES;
+    panel.allowsMultipleSelection = NO;
+    panel.treatsFilePackagesAsDirectories = YES;
+    if(_path.length != 0)
+    {
+        panel.directoryURL = [NSURL fileURLWithPath:_path.stringByDeletingLastPathComponent isDirectory:YES];
+    }
+
+    if([panel runModal] != NSModalResponseOK || panel.URL == nil)
+    {
+        return NO;
+    }
+
+    [self.view addFontSearchDirectory:panel.URL.path];
+    return YES;
+}
+
+//////////////////////////////////////////////////////////////////////////
+- (void)promptForMissingFontsIfNeededNearPath:(NSString *)_path
+{
+    if(self.view == nil)
+    {
+        return;
+    }
+
+    for(;;)
+    {
+        NSArray<NSString *> * missingFonts = [self.view collectMissingFontDescriptions];
+        if(missingFonts.count == 0)
+        {
+            return;
+        }
+
+        NSAlert * alert = [[NSAlert alloc] init];
+        alert.alertStyle = NSAlertStyleWarning;
+        alert.messageText = @"Missing Figma fonts";
+        alert.informativeText = missingFontsInformativeText(missingFonts, [self.view fontSearchDirectories]);
+        [alert addButtonWithTitle:@"Choose Fonts Folder"];
+        [alert addButtonWithTitle:@"Continue Without Fonts"];
+
+        if([alert runModal] != NSAlertFirstButtonReturn)
+        {
+            return;
+        }
+
+        if([self chooseFontDirectoryStartingAtPath:_path] == NO)
+        {
+            return;
+        }
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
 - (BOOL)loadFigAtPath:(NSString *)_figPath sidecarPath:(NSString *)_sidecarPath showError:(BOOL)_showError
 {
     if(self.runtime == nullptr || _figPath.length == 0)
@@ -126,6 +216,7 @@
     [self.window makeFirstResponder:self.view];
     self.lastTickTime = [NSDate date];
     [self refreshTimerMode];
+    [self promptForMissingFontsIfNeededNearPath:_figPath];
     return YES;
 }
 
@@ -140,10 +231,7 @@
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = NO;
     panel.allowsMultipleSelection = NO;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    panel.allowedFileTypes = @[@"fig"];
-#pragma clang diagnostic pop
+    panel.treatsFilePackagesAsDirectories = NO;
     if(self.document != nullptr)
     {
         NSString * path = nsString(privateDocument(self.document)->getPath());
