@@ -26,9 +26,9 @@ The viewer requires a local `.fig` path argument and starts in prototype viewpor
 
 Text rendering uses decoded Figma font metadata and searches `FIGMA_VIEWER_FONT_DIRS` plus system font directories. Missing `.fig` fonts are logged by the viewer instead of being bundled as sample-specific fallbacks.
 
-## Sidecar `.ux.json`
+## UX `.ux.json`
 
-The SDK uses an optional sidecar file for game-facing bindings and actions:
+The SDK uses optional `.ux.json` data for game-facing bindings and actions:
 
 ```json
 {

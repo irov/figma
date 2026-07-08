@@ -925,10 +925,10 @@ Figma::EResult loadViewerDocument(Figma::RuntimeInterface * const _runtime,
 
     if(_sidecarPath != nullptr)
     {
-        std::string sidecarJson;
-        if(readFileText(_sidecarPath, &sidecarJson) == true)
+        std::string uxData;
+        if(readFileText(_sidecarPath, &uxData) == true)
         {
-            document->loadBindingSidecarJson(Figma::FigmaStringView(sidecarJson.data(), sidecarJson.size()));
+            document->loadUX(Figma::FigmaStringView(uxData.data(), uxData.size()));
         }
     }
 

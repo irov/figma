@@ -17,7 +17,7 @@ namespace Figma
         : public AssetProviderInterface
     {
     public:
-        virtual EResult loadBindingSidecarJson(FigmaStringView _json) = 0;
+        virtual EResult loadUX(FigmaStringView _data) = 0;
         virtual const DiagnosticsInterface * getDiagnostics() const = 0;
 
     public:

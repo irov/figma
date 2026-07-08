@@ -21,7 +21,7 @@ namespace Figma
         Document(RuntimeInterface * const _runtime, FigmaMemoryResource * _memory);
 
         void destroy() override;
-        EResult loadBindingSidecarJson(FigmaStringView _json) override;
+        EResult loadUX(FigmaStringView _data) override;
         const FigmaString & getPath() const;
         const FigmaString & getFileName() const;
         const Rectf & getRenderCoordinates() const;

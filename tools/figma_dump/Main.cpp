@@ -1412,17 +1412,17 @@ int main(int _argc, char ** _argv)
 
     if(options.sidecarPath != nullptr)
     {
-        std::string sidecarJson;
-        if(readFileText(options.sidecarPath, &sidecarJson) == false)
+        std::string uxData;
+        if(readFileText(options.sidecarPath, &uxData) == false)
         {
             std::fprintf(stderr, "Unable to read .ux.json sidecar: %s\n", options.sidecarPath);
             return EXIT_FAILURE;
         }
 
-        result = document->loadBindingSidecarJson(Figma::FigmaStringView(sidecarJson.data(), sidecarJson.size()));
+        result = document->loadUX(Figma::FigmaStringView(uxData.data(), uxData.size()));
         if(result != Figma::EResult::Ok)
         {
-            std::fprintf(stderr, "loadBindingSidecarJson failed: %s\n", resultToString(result));
+            std::fprintf(stderr, "loadUX failed: %s\n", resultToString(result));
             return EXIT_FAILURE;
         }
     }

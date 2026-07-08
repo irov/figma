@@ -353,15 +353,15 @@ namespace Figma
         return EResult::Ok;
     }
     //////////////////////////////////////////////////////////////////////////
-    EResult Document::loadBindingSidecarJson(FigmaStringView _json)
+    EResult Document::loadUX(FigmaStringView _data)
     {
-        if(_json.empty() == true)
+        if(_data.empty() == true)
         {
             return EResult::InvalidArgument;
         }
 
         JsonDocument json;
-        EResult result = parseJson(this->getMemory(), _json, this->getDiagnostics(), &json);
+        EResult result = parseJson(this->getMemory(), _data, this->getDiagnostics(), &json);
         if(result != EResult::Ok)
         {
             return result;
