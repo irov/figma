@@ -77,7 +77,7 @@ NSString * nsString(const Figma::FigmaString & _value);
 NSString * escapedInspectorString(const Figma::FigmaString & _value);
 NSString * inspectorBoolString(bool _value);
 NSString * inspectorRectString(const Figma::Rectf & _rect);
-NSString * inspectorColorString(const Figma::Color & _color);
+NSString * inspectorColorString(const Figma::Colorf & _color);
 NSString * inspectorFloatArrayString(const float * _values, std::size_t _count);
 std::string resolveFigPath(const char * _requestedPath);
 float prototypeIntroAdvanceTime(const Figma::DocumentInterface * _document);

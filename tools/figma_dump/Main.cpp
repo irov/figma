@@ -702,7 +702,7 @@ namespace
     }
 
     //////////////////////////////////////////////////////////////////////////
-    void printColor(const Figma::Color & _color)
+    void printColor(const Figma::Colorf & _color)
     {
         //////////////////////////////////////////////////////////////////////////
         std::printf("{\"r\": %.6f, \"g\": %.6f, \"b\": %.6f, \"a\": %.6f}", _color.r, _color.g, _color.b, _color.a);

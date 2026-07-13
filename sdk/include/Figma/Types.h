@@ -35,7 +35,7 @@
 
 namespace Figma
 {
-    inline constexpr std::uint32_t FIGMA_SDK_VERSION = 4;
+    inline constexpr std::uint32_t FIGMA_SDK_VERSION = 5;
 
     using FigmaChar = char;
     using Char = FigmaChar;
@@ -96,7 +96,7 @@ namespace Figma
         float h;
     };
 
-    struct Color
+    struct Colorf
     {
         float r;
         float g;

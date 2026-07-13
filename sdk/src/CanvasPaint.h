@@ -11,7 +11,7 @@ namespace Figma
         ECanvasPaintType type = ECanvasPaintType::Solid;
         ECanvasBlendMode blendMode = ECanvasBlendMode::Normal;
         ECanvasImageScaleMode imageScaleMode = ECanvasImageScaleMode::Fill;
-        Color color;
+        Colorf color;
         float opacity = 1.0f;
         bool visible = true;
         FigmaString assetId;

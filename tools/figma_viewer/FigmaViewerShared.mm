@@ -344,7 +344,7 @@ NSString * inspectorRectString(const Figma::Rectf & _rect)
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSString * inspectorColorString(const Figma::Color & _color)
+NSString * inspectorColorString(const Figma::Colorf & _color)
 {
     return [NSString stringWithFormat:@"r=%.3f g=%.3f b=%.3f a=%.3f", _color.r, _color.g, _color.b, _color.a];
 }

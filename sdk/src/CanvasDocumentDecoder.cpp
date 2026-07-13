@@ -378,9 +378,9 @@ namespace Figma
         return value;
     }
     //////////////////////////////////////////////////////////////////////////
-    Color CanvasDocumentDecoder::decodeColor(KiwiByteReader & _reader)
+    Colorf CanvasDocumentDecoder::decodeColor(KiwiByteReader & _reader)
     {
-        Color value{1.0f, 1.0f, 1.0f, 1.0f};
+        Colorf value{1.0f, 1.0f, 1.0f, 1.0f};
 
         const KiwiDefinitionDesc * definition = findKiwiDefinition(m_schema, "Color");
         if(definition == nullptr)

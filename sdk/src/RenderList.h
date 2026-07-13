@@ -65,7 +65,7 @@ namespace Figma
         FigmaString fontStyle;
         FigmaString fontPostscriptName;
         Rectf rect = {0.0f, 0.0f, 0.0f, 0.0f};
-        Color color = {1.0f, 1.0f, 1.0f, 1.0f};
+        Colorf color = {1.0f, 1.0f, 1.0f, 1.0f};
         ERenderShapeType shape = ERenderShapeType::Rectangle;
         ERenderTextAlignHorizontal textAlignHorizontal = ERenderTextAlignHorizontal::Left;
         ERenderTextAlignVertical textAlignVertical = ERenderTextAlignVertical::Top;

@@ -106,7 +106,7 @@ namespace Figma
         FigmaString decodeGuid( KiwiByteReader & _reader );
         Vec2f decodeVector( KiwiByteReader & _reader );
         MatrixDesc decodeMatrix( KiwiByteReader & _reader );
-        Color decodeColor( KiwiByteReader & _reader );
+        Colorf decodeColor( KiwiByteReader & _reader );
         ParentIndexDesc decodeParentIndex( KiwiByteReader & _reader );
         FontNameDesc decodeFontName( KiwiByteReader & _reader );
         NumberDesc decodeNumber( KiwiByteReader & _reader );

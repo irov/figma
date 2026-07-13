@@ -67,7 +67,7 @@ namespace Figma
         float y = 0.0f;
         float u = 0.0f;
         float v = 0.0f;
-        Color color;
+        Colorf color;
     };
 
     struct RenderBatchDesc
@@ -109,7 +109,7 @@ namespace Figma
         FigmaStringView fontStyle;
         FigmaStringView fontPostscriptName;
         Rectf rect = {0.0f, 0.0f, 0.0f, 0.0f};
-        Color color = {1.0f, 1.0f, 1.0f, 1.0f};
+        Colorf color = {1.0f, 1.0f, 1.0f, 1.0f};
         ERenderTextAlignHorizontal textAlignHorizontal = ERenderTextAlignHorizontal::Left;
         ERenderTextAlignVertical textAlignVertical = ERenderTextAlignVertical::Top;
         float fontSize = 18.0f;

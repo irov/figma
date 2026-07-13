@@ -598,7 +598,7 @@ namespace Figma
             return newPtr;
         }
         //////////////////////////////////////////////////////////////////////////
-        static Color colorFromArgb(gp_argb_t _argb)
+        static Colorf colorFromArgb(gp_argb_t _argb)
         {
             return {
                 makeColorChannel8(static_cast<std::uint8_t>((_argb >> 16) & 0xff)),
@@ -718,7 +718,7 @@ namespace Figma
                 return false;
             }
 
-            const Color color = _command->color;
+            const Colorf color = _command->color;
             const float alpha = std::max(0.0f, std::min(1.0f, color.a * _command->opacity));
             const float strokeWidth = std::max(0.0f, _command->strokeWidth);
             gp_set_color(canvas, color.r, color.g, color.b, alpha);
@@ -907,7 +907,7 @@ namespace Figma
                 return false;
             }
 
-            const Color color = _command->color;
+            const Colorf color = _command->color;
             const float alpha = std::max(0.0f, std::min(1.0f, color.a * _command->opacity));
             gp_set_color(canvas, color.r, color.g, color.b, alpha);
             gp_set_penumbra(canvas, 0.0f);
@@ -985,7 +985,7 @@ namespace Figma
                     continue;
                 }
 
-                const Color color = fill.paint->color;
+                const Colorf color = fill.paint->color;
                 const float alpha = clamp01(color.a * _opacity * clamp01(fill.paint->opacity));
                 gp_set_color(canvas, color.r, color.g, color.b, alpha);
                 gp_begin_fill(canvas);
@@ -1309,7 +1309,7 @@ namespace Figma
                 _command->rect = {x0, y0, x1 - x0, y1 - y0};
             }
 
-            const Color white{1.0f, 1.0f, 1.0f, 1.0f};
+            const Colorf white{1.0f, 1.0f, 1.0f, 1.0f};
             Vec2f quad[4];
             makeRenderQuad(_nodeRect, _nodeQuad, _command->rect, quad);
             _command->vertices.resize(4);
@@ -1419,7 +1419,7 @@ namespace Figma
         {
             Vec2f quad[4];
             makeRenderQuad(_nodeRect, _nodeQuad, _command->rect, quad);
-            const Color white{1.0f, 1.0f, 1.0f, 1.0f};
+            const Colorf white{1.0f, 1.0f, 1.0f, 1.0f};
 
             _command->vertices.resize(4);
             _command->vertices[0] = {quad[0].x, quad[0].y, 0.0f, 0.0f, white};
