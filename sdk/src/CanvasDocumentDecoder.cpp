@@ -164,6 +164,10 @@ namespace Figma
     {
     }
     //////////////////////////////////////////////////////////////////////////
+    CanvasDocumentDecoder::~CanvasDocumentDecoder()
+    {
+    }
+    //////////////////////////////////////////////////////////////////////////
     bool CanvasDocumentDecoder::decode(KiwiByteReader & _reader)
     {
         const KiwiDefinitionDesc * messageDefinition = findKiwiDefinition(m_schema, "Message");

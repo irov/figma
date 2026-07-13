@@ -15,7 +15,7 @@ if(APPLE)
     MetalRenderBackend.mm
   )
 
-  target_link_libraries(figma_viewer PRIVATE figma_sdk freetype png_static figma_libjpeg)
+target_link_libraries(figma_viewer PRIVATE Figma::SDK freetype png_static figma_libjpeg)
   target_include_directories(figma_viewer PRIVATE
     "${CMAKE_SOURCE_DIR}/sdk/src"
     "${CMAKE_SOURCE_DIR}/thirdparty/libjpeg/src"
@@ -26,6 +26,7 @@ if(APPLE)
   set_target_properties(figma_viewer PROPERTIES
     MACOSX_BUNDLE_BUNDLE_NAME "Figma Viewer"
     MACOSX_BUNDLE_GUI_IDENTIFIER "dev.figma.viewer"
+    XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "dev.figma.viewer"
   )
 
   find_library(APPKIT_FRAMEWORK AppKit REQUIRED)

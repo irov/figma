@@ -10,29 +10,30 @@ namespace Figma
     class RuntimeInterface;
     class Document;
 
-    EResult loadDocumentFromArchiveDataImpl(RuntimeInterface * const _runtime, const void * _data, std::size_t _size, const LoadOptions & _options, DocumentInterface ** const _document);
-    bool decodeCanvas(RuntimeInterface * const _runtime, const FigmaByteBuffer & _bytes, Document * const _document, DiagnosticsInterface * const _diagnostics);
+    EResult loadDocumentFromArchiveData(
+        RuntimeInterface * const _runtime, const void * _data, std::size_t _size, const LoadOptions & _options, DocumentInterface ** const _document );
+    bool decodeCanvas( RuntimeInterface * const _runtime, const FigmaByteBuffer & _bytes, Document * const _document, DiagnosticsInterface * const _diagnostics );
 
     class Document final
         : public DocumentInterface
         , public DocumentInspectionInterface
     {
     public:
-        Document(RuntimeInterface * const _runtime, FigmaMemoryResource * _memory);
+        Document( RuntimeInterface * const _runtime, FigmaMemoryResource * _memory );
+        ~Document();
 
-        void destroy() override;
-        EResult loadUX(FigmaStringView _data) override;
+        EResult loadUX( FigmaStringView _data ) override;
         const FigmaString & getPath() const;
         const FigmaString & getFileName() const;
         const Rectf & getRenderCoordinates() const;
         const Vec2f & getThumbnailSize() const;
         const AssetVector & getAssets() const;
-        const AssetDesc * findAsset(FigmaStringView _assetId) const override;
+        const AssetDesc * findAsset( FigmaStringView _assetId ) const override;
         const AssetDesc * getThumbnailAsset() const;
         bool getFrameRect(FigmaStringView _nodeId, Rectf * const _rect) const override;
         bool getPrototypeStartFrameRect(Rectf * const _rect) const override;
         const DocumentInspectionInterface * getInspection() const;
-        const CanvasNodeDesc * findCanvasNode(FigmaStringView _nodeId) const override;
+        const CanvasNodeDesc * findCanvasNode( FigmaStringView _nodeId ) const override;
         const CanvasNodeDesc * getCanvasRoot() const override;
         const CanvasNodeDesc * getPrototypeStartFrame() const override;
         const BindingVector & getBindings() const;
@@ -42,13 +43,17 @@ namespace Figma
         char getCanvasVersion() const;
         bool hasCanvasBytes() const;
         FigmaMemoryResource * getMemory() const;
-        const CanvasNodeDesc * findCanvasNodeDesc(FigmaStringView _nodeId) const;
+        const CanvasNodeDesc * findCanvasNodeDesc( FigmaStringView _nodeId ) const;
         const CanvasNodeDesc * getCanvasRootDesc() const;
         const CanvasNodeDesc * getPrototypeStartFrameDesc() const;
 
+    public:
+        void destroy() override;
+
     protected:
-        friend EResult loadDocumentFromArchiveDataImpl(RuntimeInterface * const _runtime, const void * _data, std::size_t _size, const LoadOptions & _options, DocumentInterface ** const _document);
-        friend bool decodeCanvas(RuntimeInterface * const _runtime, const FigmaByteBuffer & _bytes, Document * const _document, DiagnosticsInterface * const _diagnostics);
+        friend EResult loadDocumentFromArchiveData(
+            RuntimeInterface * const _runtime, const void * _data, std::size_t _size, const LoadOptions & _options, DocumentInterface ** const _document );
+        friend bool decodeCanvas( RuntimeInterface * const _runtime, const FigmaByteBuffer & _bytes, Document * const _document, DiagnosticsInterface * const _diagnostics );
 
         RuntimeInterface * m_runtime;
         FigmaMemoryResource * m_memory;

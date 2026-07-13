@@ -10,8 +10,8 @@ namespace Figma
         JsonDocument();
         ~JsonDocument();
 
-        JsonDocument(const JsonDocument & _doc) = delete;
-        JsonDocument & operator=(const JsonDocument & _doc) = delete;
+        JsonDocument( const JsonDocument & _doc ) = delete;
+        JsonDocument & operator=( const JsonDocument & _doc ) = delete;
 
         js_element_t ** getAddress();
         const js_element_t * getRoot() const;

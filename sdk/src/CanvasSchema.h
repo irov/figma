@@ -13,9 +13,9 @@ namespace Figma
 
     struct KiwiFieldDesc
     {
-        explicit KiwiFieldDesc(FigmaMemoryResource * _memory)
-            : name(_memory)
-            , type(_memory)
+        explicit KiwiFieldDesc( FigmaMemoryResource * _memory )
+            : name( _memory )
+            , type( _memory )
         {
         }
 
@@ -29,9 +29,9 @@ namespace Figma
 
     struct KiwiDefinitionDesc
     {
-        explicit KiwiDefinitionDesc(FigmaMemoryResource * _memory)
-            : name(_memory)
-            , fields(_memory)
+        explicit KiwiDefinitionDesc( FigmaMemoryResource * _memory )
+            : name( _memory )
+            , fields( _memory )
         {
         }
 
@@ -44,14 +44,14 @@ namespace Figma
 
     struct KiwiSchemaDesc
     {
-        explicit KiwiSchemaDesc(FigmaMemoryResource * _memory)
-            : definitions(_memory)
+        explicit KiwiSchemaDesc( FigmaMemoryResource * _memory )
+            : definitions( _memory )
         {
         }
 
         KiwiDefinitionVector definitions;
     };
     //////////////////////////////////////////////////////////////////////////
-    const KiwiDefinitionDesc * findKiwiDefinition(const KiwiSchemaDesc & _schema, FigmaStringView _name);
-    const KiwiFieldDesc * findKiwiField(const KiwiDefinitionDesc & _definition, std::uint32_t _value);
+    const KiwiDefinitionDesc * findKiwiDefinition( const KiwiSchemaDesc & _schema, FigmaStringView _name );
+    const KiwiFieldDesc * findKiwiField( const KiwiDefinitionDesc & _definition, std::uint32_t _value );
 }

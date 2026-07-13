@@ -22,6 +22,33 @@ sh build/xcode_macos/build_solution_xcode_macos.sh Debug figma_viewer
 open -n "$PWD/solutions/bin/xcode_macos/Debug/figma_viewer.app" --args /Users/yurii.levchenko/Downloads/KROSSROAD_Presentation.fig
 ```
 
+### Embed with CMake
+
+The repository root can be included directly by a host project. The host creates the dependency targets first and passes them to Figma instead of maintaining a separate SDK source list:
+
+```cmake
+set(FIGMA_BUILD_BUNDLED_DEPENDENCIES OFF)
+set(FIGMA_VIEWER OFF)
+set(FIGMA_TOOLS OFF)
+set(FIGMA_SDK_LIBRARY_TYPE STATIC)
+set(FIGMA_SDK_DEPENDENCIES
+  graphics
+  json
+  kiwi
+  zlibstatic
+  libzstd_static
+)
+set(FIGMA_SDK_DEPENDENCY_INCLUDE_DIRS
+  "${THIRDPARTY_DIR}/graphics/include"
+  "${THIRDPARTY_DIR}/json/include"
+)
+
+add_subdirectory("${THIRDPARTY_DIR}/figma" "${CMAKE_BINARY_DIR}/figma")
+target_link_libraries(host_target PRIVATE Figma::SDK)
+```
+
+`FIGMA_SDK_DEPENDENCY_INCLUDE_DIRS` is only needed for dependency targets that do not export their include directories. A host may also set `FIGMA_SDK_COMPILE_DEFINITIONS` and disable `FIGMA_SDK_WARNINGS`. Standalone builds keep bundled dependencies, the viewer, and tools enabled by default; those defaults are disabled when Figma is used as a subdirectory.
+
 The viewer requires a local `.fig` path argument and starts in prototype viewport mode by default with an iPhone 14 Plus aspect ratio. It draws only the rectangular screen viewport, not a phone body. If the requested `.fig` path is missing but `<path>.zip` exists, the viewer opens the ZIP export automatically.
 
 Text rendering uses decoded Figma font metadata and searches `FIGMA_VIEWER_FONT_DIRS` plus system font directories. Missing `.fig` fonts are logged by the viewer instead of being bundled as sample-specific fallbacks.

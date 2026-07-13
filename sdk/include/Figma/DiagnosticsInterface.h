@@ -13,10 +13,10 @@ namespace Figma
 
     struct Diagnostic
     {
-        explicit Diagnostic(FigmaMemoryResource * _memory = getDefaultMemoryResource())
-            : code(_memory)
-            , message(_memory)
-            , nodeId(_memory)
+        explicit Diagnostic( FigmaMemoryResource * _memory = getDefaultMemoryResource() )
+            : code( _memory )
+            , message( _memory )
+            , nodeId( _memory )
         {
         }
 
@@ -32,7 +32,7 @@ namespace Figma
     {
     public:
         virtual void clear() = 0;
-        virtual void add(EDiagnosticSeverity _severity, const Char * _code, const Char * _message, const Char * _nodeId = "") = 0;
+        virtual void add( EDiagnosticSeverity _severity, const Char * _code, const Char * _message, const Char * _nodeId = "" ) = 0;
         virtual bool hasErrors() const = 0;
 
         virtual const DiagnosticVector & getItems() const = 0;

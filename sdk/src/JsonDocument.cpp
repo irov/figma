@@ -4,15 +4,15 @@ namespace Figma
 {
     //////////////////////////////////////////////////////////////////////////
     JsonDocument::JsonDocument()
-        : m_root(nullptr)
+        : m_root( nullptr )
     {
     }
     //////////////////////////////////////////////////////////////////////////
     JsonDocument::~JsonDocument()
     {
-        if(m_root != nullptr)
+        if( m_root != nullptr )
         {
-            js_free(m_root);
+            js_free( m_root );
             m_root = nullptr;
         }
     }

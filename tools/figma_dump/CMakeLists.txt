@@ -3,7 +3,7 @@ add_executable(figma_dump
 )
 
 target_compile_features(figma_dump PRIVATE cxx_std_17)
-target_link_libraries(figma_dump PRIVATE figma_sdk)
+target_link_libraries(figma_dump PRIVATE Figma::SDK)
 target_include_directories(figma_dump PRIVATE "${CMAKE_SOURCE_DIR}/sdk/src")
 
 if(MSVC)

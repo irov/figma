@@ -22,10 +22,9 @@ namespace Figma
     using UnsupportedFieldVector = FigmaVector<FigmaString>;
     using DashPatternVector = FigmaVector<float>;
 
-    template<class TContainer>
-    const typename TContainer::value_type * valueAt(const TContainer & _values, std::uint32_t _index)
+    template <class TContainer> const typename TContainer::value_type * valueAt( const TContainer & _values, std::uint32_t _index )
     {
-        if(_index >= _values.size())
+        if( _index >= _values.size() )
         {
             return nullptr;
         }
@@ -35,7 +34,7 @@ namespace Figma
 
     struct CanvasPathStyleOverrideDesc
     {
-        explicit CanvasPathStyleOverrideDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit CanvasPathStyleOverrideDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         std::uint32_t styleId = 0;
         CanvasPaintVector fills;
@@ -44,7 +43,7 @@ namespace Figma
 
     struct CanvasPathDesc final
     {
-        explicit CanvasPathDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit CanvasPathDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         ECanvasWindingRule windingRule = ECanvasWindingRule::NonZero;
         std::uint32_t commandsBlob = 0;
@@ -56,7 +55,7 @@ namespace Figma
 
     struct PrototypeActionDesc final
     {
-        explicit PrototypeActionDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit PrototypeActionDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         FigmaString targetNodeId;
         FigmaString rawConnectionType;
@@ -79,7 +78,7 @@ namespace Figma
 
     struct PrototypeInteractionDesc final
     {
-        explicit PrototypeInteractionDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit PrototypeInteractionDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         FigmaString id;
         FigmaString rawEventType;
@@ -92,7 +91,7 @@ namespace Figma
 
     struct CanvasTextLineDesc final
     {
-        explicit CanvasTextLineDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit CanvasTextLineDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         FigmaString text;
         float x = 0.0f;
@@ -104,7 +103,7 @@ namespace Figma
 
     struct CanvasNodeDesc final
     {
-        explicit CanvasNodeDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit CanvasNodeDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         FigmaString id;
         FigmaString name;

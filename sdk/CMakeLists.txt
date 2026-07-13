@@ -4,7 +4,9 @@ add_library(figma_sdk ${FIGMA_SDK_LIBRARY_TYPE}
   src/Diagnostics.cpp
   src/Diagnostics.h
   src/DiagnosticsMacros.h
+  src/DocumentInspection.cpp
   src/DocumentInspection.h
+  src/DocumentModel.cpp
   src/DocumentModel.h
   src/Document.h
   src/CanvasDecoder.cpp
@@ -24,8 +26,9 @@ add_library(figma_sdk ${FIGMA_SDK_LIBRARY_TYPE}
   src/JsonUtils.h
   src/KiwiByteReader.cpp
   src/KiwiByteReader.h
+  src/Memory.cpp
+  src/Memory.h
   src/Player.cpp
-  src/PlayerFactory.h
   src/Player.h
   src/RenderList.h
   src/RenderList.cpp

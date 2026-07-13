@@ -101,6 +101,7 @@ namespace Figma
     {
     public:
         explicit RenderList(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        ~RenderList();
 
         std::uint32_t getBatchCount() const override;
         EResult getBatch(std::uint32_t _index, RenderBatchDesc * const _batch) const override;

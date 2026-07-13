@@ -1,7 +1,9 @@
 #include "Document.h"
 
-#include <cstdint>
-#include <memory>
+#include "DocumentLoader.h"
+
+#include <new>
+#include <utility>
 
 namespace Figma
 {
@@ -9,17 +11,17 @@ namespace Figma
     namespace Detail
     {
         //////////////////////////////////////////////////////////////////////////
-        static const CanvasNodeDesc * findCanvasNodeRecursive(const CanvasNodeDesc & _node, FigmaStringView _id)
+        static const CanvasNodeDesc * findCanvasNodeRecursive( const CanvasNodeDesc & _node, FigmaStringView _id )
         {
-            if(_node.id == _id)
+            if( _node.id == _id )
             {
                 return &_node;
             }
 
-            for(const CanvasNodeDesc & child : _node.children)
+            for( const CanvasNodeDesc & child : _node.children )
             {
-                const CanvasNodeDesc * found = findCanvasNodeRecursive(child, _id);
-                if(found != nullptr)
+                const CanvasNodeDesc * found = findCanvasNodeRecursive( child, _id );
+                if( found != nullptr )
                 {
                     return found;
                 }
@@ -29,122 +31,61 @@ namespace Figma
         }
     }
     //////////////////////////////////////////////////////////////////////////
-    CanvasPathDesc::CanvasPathDesc(FigmaMemoryResource * _memory)
-        : commands(_memory)
-        , paints(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    CanvasPathStyleOverrideDesc::CanvasPathStyleOverrideDesc(FigmaMemoryResource * _memory)
-        : fills(_memory)
-        , strokes(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    CanvasTextLineDesc::CanvasTextLineDesc(FigmaMemoryResource * _memory)
-        : text(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    PrototypeActionDesc::PrototypeActionDesc(FigmaMemoryResource * _memory)
-        : targetNodeId(_memory)
-        , rawConnectionType(_memory)
-        , rawNavigationType(_memory)
-        , rawTransitionType(_memory)
-        , rawTransitionDirection(_memory)
-        , rawTransitionEasing(_memory)
-        , unsupportedFields(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    PrototypeInteractionDesc::PrototypeInteractionDesc(FigmaMemoryResource * _memory)
-        : id(_memory)
-        , rawEventType(_memory)
-        , actions(_memory)
-        , unsupportedFields(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    AnimationTrackDesc::AnimationTrackDesc(FigmaMemoryResource * _memory)
-        : nodeId(_memory)
-        , targetNodeId(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    AnimationClipDesc::AnimationClipDesc(FigmaMemoryResource * _memory)
-        : id(_memory)
-        , sourceFrameId(_memory)
-        , targetFrameId(_memory)
-        , sourceNodeId(_memory)
-        , tracks(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    PlayerAnimationStateDesc::PlayerAnimationStateDesc(FigmaMemoryResource * _memory)
-        : clip(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    CanvasNodeDesc::CanvasNodeDesc(FigmaMemoryResource * _memory)
-        : id(_memory)
-        , name(_memory)
-        , rect{}
-        , quad{}
-        , vectorNormalizedSize{}
-        , text(_memory)
-        , fontFamily(_memory)
-        , fontStyle(_memory)
-        , fontPostscriptName(_memory)
-        , prototypeStartNodeId(_memory)
-        , symbolId(_memory)
-        , fillStyleNodeId(_memory)
-        , strokeFillStyleNodeId(_memory)
-        , rawBlendMode(_memory)
-        , dashPattern(_memory)
-        , pathStyleOverrides(_memory)
-        , fillGeometry(_memory)
-        , strokeGeometry(_memory)
-        , prototypeInteractions(_memory)
-        , textLines(_memory)
-        , fills(_memory)
-        , strokes(_memory)
-        , children(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    BindingDesc::BindingDesc(FigmaMemoryResource * _memory)
-        : nodeId(_memory)
-        , key(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    ActionDesc::ActionDesc(FigmaMemoryResource * _memory)
-        : nodeId(_memory)
-        , actionId(_memory)
-        , targetFrameId(_memory)
-    {
-    }
-    //////////////////////////////////////////////////////////////////////////
-    Document::Document(RuntimeInterface * const _runtime, FigmaMemoryResource * _memory)
-        : m_runtime(_runtime)
-        , m_memory(_memory)
-        , m_path(_memory)
-        , m_fileName(_memory)
+    Document::Document( RuntimeInterface * const _runtime, FigmaMemoryResource * _memory )
+        : m_runtime( _runtime )
+        , m_memory( _memory )
+        , m_path( _memory )
+        , m_fileName( _memory )
         , m_renderCoordinates{}
         , m_thumbnailSize{}
-        , m_canvasRoot(_memory)
-        , m_prototypeStartNodeId(_memory)
-        , m_assets(_memory)
-        , m_canvasBytes(_memory)
-        , m_bindings(_memory)
-        , m_actions(_memory)
-        , m_diagnostics(_memory)
+        , m_canvasRoot( _memory )
+        , m_prototypeStartNodeId( _memory )
+        , m_assets( _memory )
+        , m_canvasBytes( _memory )
+        , m_bindings( _memory )
+        , m_actions( _memory )
+        , m_diagnostics( _memory )
+    {
+    }
+    //////////////////////////////////////////////////////////////////////////
+    Document::~Document()
     {
     }
     //////////////////////////////////////////////////////////////////////////
     void Document::destroy()
     {
-        delete this;
+        FigmaMemoryResource * memory = m_memory;
+
+        this->~Document();
+        memory->deallocate( this, sizeof( Document ), alignof( Document ) );
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Document::loadUX( FigmaStringView _data )
+    {
+        try
+        {
+            BindingVector bindings( m_memory );
+            ActionVector actions( m_memory );
+
+            const EResult result = loadDocumentUX( m_memory, &m_diagnostics, _data, &bindings, &actions );
+            if( result != EResult::Ok )
+            {
+                return result;
+            }
+
+            m_bindings = std::move( bindings );
+            m_actions = std::move( actions );
+
+            return EResult::Ok;
+        }
+        catch( const std::bad_alloc & )
+        {
+            return EResult::OutOfMemory;
+        }
+        catch( ... )
+        {
+            return EResult::InvalidState;
+        }
     }
     //////////////////////////////////////////////////////////////////////////
     const FigmaString & Document::getPath() const
@@ -172,11 +113,11 @@ namespace Figma
         return m_assets;
     }
     //////////////////////////////////////////////////////////////////////////
-    const AssetDesc * Document::findAsset(FigmaStringView _assetId) const
+    const AssetDesc * Document::findAsset( FigmaStringView _assetId ) const
     {
-        for(const AssetDesc & asset : m_assets)
+        for( const AssetDesc & asset : m_assets )
         {
-            if(asset.id == _assetId || asset.path == _assetId)
+            if( asset.id == _assetId || asset.path == _assetId )
             {
                 return &asset;
             }
@@ -187,7 +128,7 @@ namespace Figma
     //////////////////////////////////////////////////////////////////////////
     const AssetDesc * Document::getThumbnailAsset() const
     {
-        return this->findAsset("thumbnail.png");
+        return this->findAsset( "thumbnail.png" );
     }
     //////////////////////////////////////////////////////////////////////////
     bool Document::getFrameRect(FigmaStringView _nodeId, Rectf * const _rect) const
@@ -236,9 +177,9 @@ namespace Figma
         return this->getCanvasRootDesc();
     }
     //////////////////////////////////////////////////////////////////////////
-    const CanvasNodeDesc * Document::findCanvasNode(FigmaStringView _nodeId) const
+    const CanvasNodeDesc * Document::findCanvasNode( FigmaStringView _nodeId ) const
     {
-        return this->findCanvasNodeDesc(_nodeId);
+        return this->findCanvasNodeDesc( _nodeId );
     }
     //////////////////////////////////////////////////////////////////////////
     const CanvasNodeDesc * Document::getPrototypeStartFrame() const
@@ -251,24 +192,24 @@ namespace Figma
         return m_hasCanvasRoot == true ? &m_canvasRoot : nullptr;
     }
     //////////////////////////////////////////////////////////////////////////
-    const CanvasNodeDesc * Document::findCanvasNodeDesc(FigmaStringView _nodeId) const
+    const CanvasNodeDesc * Document::findCanvasNodeDesc( FigmaStringView _nodeId ) const
     {
-        if(m_hasCanvasRoot == false || _nodeId.empty() == true)
+        if( m_hasCanvasRoot == false || _nodeId.empty() == true )
         {
             return nullptr;
         }
 
-        return Detail::findCanvasNodeRecursive(m_canvasRoot, _nodeId);
+        return Detail::findCanvasNodeRecursive( m_canvasRoot, _nodeId );
     }
     //////////////////////////////////////////////////////////////////////////
     const CanvasNodeDesc * Document::getPrototypeStartFrameDesc() const
     {
-        if(m_hasCanvasRoot == false || m_prototypeStartNodeId.empty() == true)
+        if( m_hasCanvasRoot == false || m_prototypeStartNodeId.empty() == true )
         {
             return nullptr;
         }
 
-        return this->findCanvasNodeDesc(m_prototypeStartNodeId);
+        return this->findCanvasNodeDesc( m_prototypeStartNodeId );
     }
     //////////////////////////////////////////////////////////////////////////
     const BindingVector & Document::getBindings() const

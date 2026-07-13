@@ -153,6 +153,10 @@ namespace Figma
     {
     }
     //////////////////////////////////////////////////////////////////////////
+    RenderList::~RenderList()
+    {
+    }
+    //////////////////////////////////////////////////////////////////////////
     std::uint32_t RenderList::getBatchCount() const
     {
         return static_cast<std::uint32_t>(m_commands.size());

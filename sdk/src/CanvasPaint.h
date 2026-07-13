@@ -6,7 +6,7 @@ namespace Figma
 {
     struct CanvasPaint final
     {
-        explicit CanvasPaint(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit CanvasPaint( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         ECanvasPaintType type = ECanvasPaintType::Solid;
         ECanvasBlendMode blendMode = ECanvasBlendMode::Normal;
@@ -17,7 +17,7 @@ namespace Figma
         FigmaString assetId;
         FigmaString rawType;
         FigmaString rawBlendMode;
-        float transform[6] = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+        float transform[6] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f };
         float filterColorAdjust[8] = {};
         float paintFilter[10] = {};
         std::uint32_t originalImageWidth = 0;

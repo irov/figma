@@ -35,7 +35,7 @@
 
 namespace Figma
 {
-    inline constexpr std::uint32_t FIGMA_SDK_VERSION = 3;
+    inline constexpr std::uint32_t FIGMA_SDK_VERSION = 4;
 
     using FigmaChar = char;
     using Char = FigmaChar;
@@ -47,7 +47,7 @@ namespace Figma
     template<class T>
     struct FigmaVectorStaticAssertionBoolSpecialization
     {
-        static_assert(std::is_same<T, bool>::value == false, "figma vector bool specialization is not allowed");
+        static_assert( std::is_same<T, bool>::value == false, "figma vector bool specialization is not allowed" );
 
         using type = T;
     };

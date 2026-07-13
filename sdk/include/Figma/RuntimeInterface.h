@@ -4,12 +4,11 @@
 #include "Figma/PlayerInterface.h"
 #include "Figma/Types.h"
 
-#include <cstddef>
-
 namespace Figma
 {
     struct AllocatorDesc
     {
+        // alloc/free must be supplied together; returned memory must satisfy max_align_t alignment.
         using AllocFunc = void * (*)(std::size_t _size, void * _userData);
         using ReallocFunc = void * (*)(void * _ptr, std::size_t _size, void * _userData);
         using FreeFunc = void (*)(void * _ptr, void * _userData);

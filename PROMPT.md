@@ -22,6 +22,7 @@ That file is a ZIP archive containing `meta.json`, `thumbnail.png`, `images/*`, 
 - SDK target name is `figma_sdk`.
 - Public namespace is `Figma`.
 - CMake is the canonical build system.
+- The repository root CMake project is reusable through `add_subdirectory`. Standalone builds use downloaded bundled dependencies and enable the viewer/tools by default; embedded builds disable those defaults and receive host-created dependency targets, any legacy non-transitive dependency include directories, optional private compile definitions, and the requested `STATIC` or `SHARED` SDK library type through `FIGMA_*` parameters. Hosts link the stable `Figma::SDK` alias and must not maintain a duplicate `figma_sdk` source list.
 - Thirdparty source acquisition follows the Mengine-style downloads project: run `sh build/downloads/downloads.sh` to configure/build the downloads solution under `solutions/downloads` and populate `thirdparty/*`. The repository must not rely on Git submodules for normal dependency setup.
 - `build/` is a script-entrypoint directory only and is grouped by build family, for example `build/downloads/` and `build/xcode_macos/`; future MSVC or other toolchain entrypoints must get their own subdirectories. Generated CMake/Xcode solutions, binaries, and app bundles live under ignored `solutions/*` paths.
 - `.fig` archive bytes are the primary v1 input; no Figma API or network auth is required. SDK code does not open filesystem paths or own other system IO. Host tools, viewers, or engine integrations load resources through their own IO layer and pass `.fig` data as a raw pointer plus byte size and optional `.ux.json` strings into the SDK.
@@ -48,6 +49,7 @@ That file is a ZIP archive containing `meta.json`, `thumbnail.png`, `images/*`, 
 
 C++ code follows the Mengine codestyle:
 
+- The repository root `.clang-format` captures the mechanically enforceable subset of the Mengine style and is applied to first-party C++ SDK sources; semantic rules such as one primary class per file and implementation dividers remain review requirements.
 - PascalCase for files and public types.
 - `E*` prefix for enums.
 - `Desc` suffix for descriptor structs.
@@ -167,6 +169,8 @@ The `.ux.json` data maps stable Figma node/component ids to:
 - optional input triggers; omitted triggers remain click actions for backward compatibility.
 
 The host provides data through `DataContextInterface` or by pushing per-key overrides through `PlayerInterface::setText()`, `setNumber()`, `setVisible()`, `setEnabled()`, `setImage()`, `setState()`, or `setBindingValue()`. `clearBindingValue()` removes a manual override so the value can fall back to `DataContextInterface`. `PlayerInterface::update()` pulls current binding values and refreshes the render list. Binding updates may only mutate existing decoded nodes; missing nodes or text/image layout that cannot be resolved from decoded node data produce diagnostics instead of demo render commands. `visible=false` hides the node from rendering and interaction; `enabled=false` keeps rendering intact but suppresses generated prototype/action hotspots for that node.
+
+Each successful `DocumentInterface::loadUX()` call atomically replaces the previous binding/action mappings. Invalid or out-of-memory UX loads leave the previous mappings intact and return an explicit `EResult`.
 
 The host handles prototype triggers, game actions, and playback lifecycle through `ActionRouterInterface`. Runtime reports each decoded trigger before routing its ordered actions, then emits typed action events with action id, interaction id, source/current/target ids, trigger/navigation/connection types, pointer/key/timer context, and the `ud` user-data pointer from `PlayerDesc`. `ActionEvent` string fields are `FigmaStringView` values valid during the synchronous `routeAction()` callback. Callback results can allow default behavior, consume the current action, navigate, open an overlay, or close an overlay; `ActionResponse::targetFrameId` is also a synchronous `FigmaStringView` consumed before `routeAction()` returns to the caller. Frame, overlay, and component-state callbacks are emitted after the corresponding playback state changes.
 

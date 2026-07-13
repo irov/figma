@@ -3,7 +3,7 @@
 #include "Figma/ActionRouter.h"
 
 #include "DiagnosticsMacros.h"
-#include "PlayerFactory.h"
+#include "Memory.h"
 #include "RenderList.h"
 
 #include "graphics/graphics.hpp"
@@ -16,6 +16,7 @@
 #include <iterator>
 #include <memory>
 #include <new>
+#include <stdexcept>
 #include <utility>
 
 namespace Figma
@@ -544,11 +545,6 @@ namespace Figma
             FigmaMemoryResource * memory = nullptr;
         };
         //////////////////////////////////////////////////////////////////////////
-        struct alignas(std::max_align_t) GraphicsMemoryHeader
-        {
-            std::size_t size = 0;
-        };
-        //////////////////////////////////////////////////////////////////////////
         static void * graphicsAlloc(gp_size_t _size, void * _userData)
         {
             GraphicsMemoryContext * context = static_cast<GraphicsMemoryContext *>(_userData);
@@ -557,12 +553,7 @@ namespace Figma
                 return nullptr;
             }
 
-            const std::size_t totalSize = sizeof(GraphicsMemoryHeader) + _size;
-            void * block = context->memory->allocate(totalSize, alignof(GraphicsMemoryHeader));
-            GraphicsMemoryHeader * header = static_cast<GraphicsMemoryHeader *>(block);
-            header->size = _size;
-
-            return header + 1;
+            return allocateMemoryBlock( context->memory, _size );
         }
         //////////////////////////////////////////////////////////////////////////
         static void graphicsFree(void * _ptr, void * _userData)
@@ -578,9 +569,7 @@ namespace Figma
                 return;
             }
 
-            GraphicsMemoryHeader * header = static_cast<GraphicsMemoryHeader *>(_ptr) - 1;
-            const std::size_t totalSize = sizeof(GraphicsMemoryHeader) + header->size;
-            context->memory->deallocate(header, totalSize, alignof(GraphicsMemoryHeader));
+            deallocateMemoryBlock( context->memory, _ptr );
         }
         //////////////////////////////////////////////////////////////////////////
         static void * graphicsRealloc(void * _ptr, gp_size_t _size, void * _userData)
@@ -596,8 +585,7 @@ namespace Figma
                 return nullptr;
             }
 
-            GraphicsMemoryHeader * oldHeader = static_cast<GraphicsMemoryHeader *>(_ptr) - 1;
-            const std::size_t oldSize = oldHeader->size;
+            const std::size_t oldSize = getMemoryBlockSize( _ptr );
             void * newPtr = graphicsAlloc(_size, _userData);
             if(newPtr == nullptr)
             {
@@ -1505,12 +1493,28 @@ namespace Figma
         const CanvasNodeDesc * initialFrame = this->resolveInitialFrame();
         this->setCurrentFrame(initialFrame);
 
-        this->update(0.0f);
+        const EResult result = this->update(0.0f);
+        if(result == EResult::OutOfMemory)
+        {
+            throw std::bad_alloc();
+        }
+
+        if(result != EResult::Ok)
+        {
+            throw std::runtime_error("Unable to initialize Figma player");
+        }
+    }
+    //////////////////////////////////////////////////////////////////////////
+    Player::~Player()
+    {
     }
     //////////////////////////////////////////////////////////////////////////
     void Player::destroy()
     {
-        delete this;
+        FigmaMemoryResource * memory = m_memory;
+
+        this->~Player();
+        memory->deallocate(this, sizeof(Player), alignof(Player));
     }
     //////////////////////////////////////////////////////////////////////////
     EResult Player::setActionRouter(ActionRouterInterface * _router)
@@ -3983,7 +3987,7 @@ namespace Figma
         return m_document.getPrototypeStartFrameDesc();
     }
     //////////////////////////////////////////////////////////////////////////
-    EResult createPlayerImpl(DocumentInterface * const _document, const PlayerDesc & _desc, PlayerInterface ** const _player)
+    EResult createPlayerFromDocument(DocumentInterface * const _document, const PlayerDesc & _desc, PlayerInterface ** const _player)
     {
         if(_document == nullptr || _player == nullptr)
         {
@@ -3999,13 +4003,31 @@ namespace Figma
             return EResult::NotFound;
         }
 
+        FigmaMemoryResource * memory = document->getMemory();
+        void * playerMemory = nullptr;
+
         try
         {
-            *_player = new Player(*document, _desc, document->getMemory());
+            playerMemory = memory->allocate(sizeof(Player), alignof(Player));
+            *_player = new(playerMemory) Player(*document, _desc, memory);
         }
         catch(const std::bad_alloc &)
         {
+            if(playerMemory != nullptr)
+            {
+                memory->deallocate(playerMemory, sizeof(Player), alignof(Player));
+            }
+
             return EResult::OutOfMemory;
+        }
+        catch(...)
+        {
+            if(playerMemory != nullptr)
+            {
+                memory->deallocate(playerMemory, sizeof(Player), alignof(Player));
+            }
+
+            throw;
         }
 
         return EResult::Ok;

@@ -9,13 +9,15 @@
 
 namespace Figma
 {
+    EResult createPlayerFromDocument( DocumentInterface * const _document, const PlayerDesc & _desc, PlayerInterface ** const _player );
+
     class Player final
         : public PlayerInterface
     {
     public:
         Player(Document & _document, const PlayerDesc & _desc, FigmaMemoryResource * _memory);
+        ~Player();
 
-        void destroy() override;
         EResult setActionRouter(ActionRouterInterface * _router) override;
         EResult setDataContext(DataContextInterface * _context) override;
         EResult setViewport(const ViewportDesc & _viewport) override;
@@ -40,6 +42,9 @@ namespace Figma
 
         const RenderListInterface * getRenderList() const override;
         const DiagnosticsInterface * getDiagnostics() const override;
+
+    public:
+        void destroy() override;
 
     protected:
         struct Hotspot

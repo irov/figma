@@ -8,10 +8,11 @@ namespace Figma
         : public DiagnosticsInterface
     {
     public:
-        explicit Diagnostics(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit Diagnostics( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
+        ~Diagnostics();
 
         void clear() override;
-        void add(EDiagnosticSeverity _severity, const Char * _code, const Char * _message, const Char * _nodeId = "") override;
+        void add( EDiagnosticSeverity _severity, const Char * _code, const Char * _message, const Char * _nodeId = "" ) override;
         bool hasErrors() const override;
         const DiagnosticVector & getItems() const override;
 

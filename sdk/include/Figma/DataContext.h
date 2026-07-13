@@ -15,8 +15,8 @@ namespace Figma
 
     struct BindingValue
     {
-        explicit BindingValue(FigmaMemoryResource * _memory = getDefaultMemoryResource())
-            : stringValue(_memory)
+        explicit BindingValue( FigmaMemoryResource * _memory = getDefaultMemoryResource() )
+            : stringValue( _memory )
         {
         }
 
@@ -29,8 +29,8 @@ namespace Figma
     class DataContextInterface
     {
     public:
-        virtual bool getBindingValue(FigmaStringView _key, BindingValue * const _value) = 0;
-        virtual bool isBindingDirty(FigmaStringView _key) const = 0;
+        virtual bool getBindingValue( FigmaStringView _key, BindingValue * const _value ) = 0;
+        virtual bool isBindingDirty( FigmaStringView _key ) const = 0;
 
     protected:
         ~DataContextInterface() = default;

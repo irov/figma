@@ -242,7 +242,7 @@ namespace Figma
 
     struct AnimationTrackDesc
     {
-        explicit AnimationTrackDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit AnimationTrackDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         FigmaString nodeId;
         FigmaString targetNodeId;
@@ -256,7 +256,7 @@ namespace Figma
 
     struct AnimationClipDesc
     {
-        explicit AnimationClipDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit AnimationClipDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         FigmaString id;
         FigmaString sourceFrameId;
@@ -273,7 +273,7 @@ namespace Figma
 
     struct PlayerAnimationStateDesc
     {
-        explicit PlayerAnimationStateDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit PlayerAnimationStateDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         AnimationClipDesc clip;
         float elapsed = 0.0f;
@@ -285,7 +285,7 @@ namespace Figma
     {
     public:
         virtual const CanvasNodeDesc * getCanvasRoot() const = 0;
-        virtual const CanvasNodeDesc * findCanvasNode(FigmaStringView _nodeId) const = 0;
+        virtual const CanvasNodeDesc * findCanvasNode( FigmaStringView _nodeId ) const = 0;
         virtual const CanvasNodeDesc * getPrototypeStartFrame() const = 0;
 
     protected:
@@ -294,7 +294,7 @@ namespace Figma
 
     struct BindingDesc
     {
-        explicit BindingDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit BindingDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         FigmaString nodeId;
         FigmaString key;
@@ -303,7 +303,7 @@ namespace Figma
 
     struct ActionDesc
     {
-        explicit ActionDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource());
+        explicit ActionDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() );
 
         FigmaString nodeId;
         FigmaString actionId;

@@ -10,11 +10,11 @@ namespace Figma
 
     struct AssetDesc
     {
-        explicit AssetDesc(FigmaMemoryResource * _memory = getDefaultMemoryResource())
-            : id(_memory)
-            , path(_memory)
-            , mime(_memory)
-            , bytes(_memory)
+        explicit AssetDesc( FigmaMemoryResource * _memory = getDefaultMemoryResource() )
+            : id( _memory )
+            , path( _memory )
+            , mime( _memory )
+            , bytes( _memory )
         {
         }
 
@@ -30,7 +30,7 @@ namespace Figma
     class AssetProviderInterface
     {
     public:
-        virtual const AssetDesc * findAsset(FigmaStringView _assetId) const = 0;
+        virtual const AssetDesc * findAsset( FigmaStringView _assetId ) const = 0;
 
     public:
         virtual void destroy() = 0;
