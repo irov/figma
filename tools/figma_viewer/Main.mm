@@ -11,7 +11,7 @@ int main(int argc, char ** argv)
     @autoreleasepool
     {
         Figma::RuntimeInterface * runtimePtr = nullptr;
-        Figma::EResult result = Figma::createRuntime({}, &runtimePtr);
+        Figma::EResult result = Figma::createRuntime(Figma::FIGMA_SDK_VERSION, {}, &runtimePtr);
         if(result != Figma::EResult::Ok)
         {
             std::fprintf(stderr, "createRuntime failed: %s\n", resultToString(result));

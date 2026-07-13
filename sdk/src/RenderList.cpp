@@ -76,10 +76,53 @@ namespace Figma
             _batch->opacity = _command.opacity;
             _batch->renderLayerId = _command.renderLayerId;
             _batch->renderLayerOpacity = _command.renderLayerOpacity;
+            for(std::size_t index = 0; index != 8; ++index)
+            {
+                _batch->filterColorAdjust[index] = _command.filterColorAdjust[index];
+            }
+            for(std::size_t index = 0; index != 10; ++index)
+            {
+                _batch->paintFilter[index] = _command.paintFilter[index];
+            }
+            _batch->clipRect = _command.rect;
             _batch->vertexCount = static_cast<std::uint32_t>(_command.vertices.size());
             _batch->vertices = _command.vertices.empty() == false ? _command.vertices.data() : nullptr;
             _batch->indexCount = static_cast<std::uint32_t>(_command.indices.size());
             _batch->indices = _command.indices.empty() == false ? _command.indices.data() : nullptr;
+            _batch->hasFilterColorAdjustValue = _command.hasFilterColorAdjustValue;
+            _batch->hasPaintFilterValue = _command.hasPaintFilterValue;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static FigmaStringView makeStringView(const FigmaString & _value)
+        {
+            return FigmaStringView(_value.data(), _value.size());
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static void makeGeneratedTextureDesc(const RenderCommand & _command, RenderGeneratedTextureDesc * const _desc)
+        {
+            _desc->key = makeStringView(_command.nodeId);
+            _desc->text = makeStringView(_command.text);
+            _desc->fontFamily = makeStringView(_command.fontFamily);
+            _desc->fontStyle = makeStringView(_command.fontStyle);
+            _desc->fontPostscriptName = makeStringView(_command.fontPostscriptName);
+            _desc->rect = _command.rect;
+            _desc->color = _command.color;
+            _desc->textAlignHorizontal = _command.textAlignHorizontal;
+            _desc->textAlignVertical = _command.textAlignVertical;
+            _desc->fontSize = _command.fontSize;
+            _desc->lineHeight = _command.lineHeight;
+            _desc->fontWeight = _command.fontWeight;
+            _desc->textLineCount = static_cast<std::uint32_t>(_command.textLines.size());
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static void makeGeneratedTextLineDesc(const RenderTextLineDesc & _source, RenderGeneratedTextLineDesc * const _line)
+        {
+            _line->text = makeStringView(_source.text);
+            _line->x = _source.x;
+            _line->y = _source.y;
+            _line->width = _source.width;
+            _line->lineHeight = _source.lineHeight;
+            _line->lineAscent = _source.lineAscent;
         }
     }
     //////////////////////////////////////////////////////////////////////////
@@ -128,6 +171,59 @@ namespace Figma
         }
 
         Detail::makeRenderBatchDesc(m_commands[_index], _batch);
+
+        return EResult::Ok;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult RenderList::getGeneratedTexture(std::uint32_t _index, RenderGeneratedTextureDesc * const _desc) const
+    {
+        if(_desc == nullptr)
+        {
+            return EResult::InvalidArgument;
+        }
+
+        if(_index >= m_commands.size())
+        {
+            return EResult::NotFound;
+        }
+
+        const RenderCommand & command = m_commands[_index];
+
+        if(command.type != ERenderCommandType::Text)
+        {
+            return EResult::InvalidArgument;
+        }
+
+        Detail::makeGeneratedTextureDesc(command, _desc);
+
+        return EResult::Ok;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult RenderList::getGeneratedTextureTextLine(std::uint32_t _index, std::uint32_t _lineIndex, RenderGeneratedTextLineDesc * const _line) const
+    {
+        if(_line == nullptr)
+        {
+            return EResult::InvalidArgument;
+        }
+
+        if(_index >= m_commands.size())
+        {
+            return EResult::NotFound;
+        }
+
+        const RenderCommand & command = m_commands[_index];
+
+        if(command.type != ERenderCommandType::Text)
+        {
+            return EResult::InvalidArgument;
+        }
+
+        if(_lineIndex >= command.textLines.size())
+        {
+            return EResult::NotFound;
+        }
+
+        Detail::makeGeneratedTextLineDesc(command.textLines[_lineIndex], _line);
 
         return EResult::Ok;
     }

@@ -40,5 +40,5 @@ namespace Figma
         ~RuntimeInterface() = default;
     };
 
-    FIGMA_EXPORT EResult createRuntime(const RuntimeDesc & _desc, RuntimeInterface ** const _runtime);
+    FIGMA_EXPORT EResult createRuntime(std::uint32_t _version, const RuntimeDesc & _desc, RuntimeInterface ** const _runtime);
 }

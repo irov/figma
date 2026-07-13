@@ -1,5 +1,7 @@
 #include "ZipArchive.h"
 
+#include "DiagnosticsMacros.h"
+
 #include <algorithm>
 #include <cstring>
 #include <limits>
@@ -138,7 +140,7 @@ namespace Figma
 
         if(_diagnostics != nullptr)
         {
-            _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_entry_missing", "Required ZIP entry is missing");
+            FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_entry_missing", "Required ZIP entry is missing");
         }
 
         return false;
@@ -162,7 +164,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_entry_too_large", "ZIP entry is too large");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_entry_too_large", "ZIP entry is too large");
             }
 
             return false;
@@ -186,7 +188,7 @@ namespace Figma
 
         if(_diagnostics != nullptr)
         {
-            _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_method_unsupported", "ZIP entry compression method is unsupported");
+            FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_method_unsupported", "ZIP entry compression method is unsupported");
         }
 
         return false;
@@ -201,7 +203,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_invalid", "File is too small to be a ZIP archive");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_invalid", "File is too small to be a ZIP archive");
             }
 
             return false;
@@ -222,7 +224,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP end of central directory was not found");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP end of central directory was not found");
             }
 
             return false;
@@ -238,7 +240,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_multidisk_unsupported", "Multidisk ZIP archives are unsupported");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_multidisk_unsupported", "Multidisk ZIP archives are unsupported");
             }
 
             return false;
@@ -248,7 +250,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP central directory points outside the file");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP central directory points outside the file");
             }
 
             return false;
@@ -261,7 +263,7 @@ namespace Figma
             {
                 if(_diagnostics != nullptr)
                 {
-                    _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP central directory entry is invalid");
+                    FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP central directory entry is invalid");
                 }
 
                 return false;
@@ -282,7 +284,7 @@ namespace Figma
             {
                 if(_diagnostics != nullptr)
                 {
-                    _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_encrypted_unsupported", "Encrypted ZIP entries are unsupported");
+                    FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_encrypted_unsupported", "Encrypted ZIP entries are unsupported");
                 }
 
                 return false;
@@ -292,7 +294,7 @@ namespace Figma
             {
                 if(_diagnostics != nullptr)
                 {
-                    _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP central directory entry exceeds file bounds");
+                    FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP central directory entry exceeds file bounds");
                 }
 
                 return false;
@@ -325,7 +327,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP local header is invalid");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP local header is invalid");
             }
 
             return false;
@@ -338,7 +340,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP entry data exceeds file bounds");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_invalid", "ZIP entry data exceeds file bounds");
             }
 
             return false;
@@ -355,7 +357,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_invalid", "Stored ZIP entry has mismatched compressed and uncompressed sizes");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_invalid", "Stored ZIP entry has mismatched compressed and uncompressed sizes");
             }
 
             return false;
@@ -369,7 +371,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_crc_failed", "Stored ZIP entry CRC check failed");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_crc_failed", "Stored ZIP entry CRC check failed");
             }
 
             return false;
@@ -396,7 +398,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_inflate_failed", "Unable to initialize zlib inflate");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_inflate_failed", "Unable to initialize zlib inflate");
             }
 
             return false;
@@ -409,7 +411,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_inflate_failed", "Unable to inflate ZIP entry");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_inflate_failed", "Unable to inflate ZIP entry");
             }
 
             return false;
@@ -420,7 +422,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "fig_zip_crc_failed", "Deflated ZIP entry CRC check failed");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "fig_zip_crc_failed", "Deflated ZIP entry CRC check failed");
             }
 
             return false;

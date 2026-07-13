@@ -41,7 +41,7 @@ namespace Figma
         delete this;
     }
     //////////////////////////////////////////////////////////////////////////
-    EResult createRuntime(const RuntimeDesc & _desc, RuntimeInterface ** const _runtime)
+    EResult createRuntime(std::uint32_t _version, const RuntimeDesc & _desc, RuntimeInterface ** const _runtime)
     {
         if(_runtime == nullptr)
         {
@@ -49,6 +49,11 @@ namespace Figma
         }
 
         *_runtime = nullptr;
+
+        if(_version != FIGMA_SDK_VERSION)
+        {
+            return EResult::VersionMismatch;
+        }
 
         try
         {

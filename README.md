@@ -36,7 +36,7 @@ The SDK uses optional `.ux.json` data for game-facing bindings and actions:
     { "nodeId": "title", "key": "screen.title", "property": "text" }
   ],
   "actions": [
-    { "nodeId": "play_button", "actionId": "play", "targetFrameId": "gameplay" }
+    { "nodeId": "play_button", "actionId": "play", "targetFrameId": "gameplay", "trigger": "click" }
   ]
 }
 ```

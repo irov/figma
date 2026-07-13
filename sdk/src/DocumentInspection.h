@@ -107,8 +107,13 @@ namespace Figma
     enum class EPrototypeEventType
     {
         Click,
-        Hover,
+        HoverEnter,
+        HoverLeave,
+        Press,
+        PointerDown,
+        PointerUp,
         AfterTimeout,
+        KeyDown,
         Unsupported
     };
 
@@ -158,6 +163,7 @@ namespace Figma
         Opacity,
         Transform,
         Rect,
+        Arc,
         Color,
         Visibility
     };
@@ -243,6 +249,9 @@ namespace Figma
         EAnimationTrackType type = EAnimationTrackType::Opacity;
         float from[4] = {};
         float to[4] = {};
+        Vec2f fromQuad[4] = {};
+        Vec2f toQuad[4] = {};
+        bool hasQuad = false;
     };
 
     struct AnimationClipDesc
@@ -299,6 +308,8 @@ namespace Figma
         FigmaString nodeId;
         FigmaString actionId;
         FigmaString targetFrameId;
+        EPrototypeEventType eventType = EPrototypeEventType::Click;
+        std::uint32_t keyCode = 0;
     };
 
 }

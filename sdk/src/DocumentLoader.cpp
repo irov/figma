@@ -2,6 +2,7 @@
 
 #include "Document.h"
 #include "CanvasDecoder.h"
+#include "DiagnosticsMacros.h"
 #include "JsonUtils.h"
 #include "ZipArchive.h"
 
@@ -165,7 +166,7 @@ namespace Figma
                 {
                     if(_diagnostics != nullptr)
                     {
-                        _diagnostics->add(EDiagnosticSeverity::Warning, "ux_binding_skipped", "Binding entry requires nodeId and key");
+                        FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Warning, "ux_binding_skipped", "Binding entry requires nodeId and key");
                     }
                     continue;
                 }
@@ -195,7 +196,7 @@ namespace Figma
                 {
                     if(_diagnostics != nullptr)
                     {
-                        _diagnostics->add(EDiagnosticSeverity::Warning, "ux_action_skipped", "Action entry requires nodeId and actionId");
+                        FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Warning, "ux_action_skipped", "Action entry requires nodeId and actionId");
                     }
                     continue;
                 }
@@ -204,6 +205,44 @@ namespace Figma
                 action.nodeId = makeString(_memory, nodeId);
                 action.actionId = makeString(_memory, actionId);
                 action.targetFrameId = makeString(_memory, jsonString(jsonMember(item, "targetFrameId")));
+                const FigmaStringView trigger = jsonString(jsonMember(item, "trigger"), "click");
+                if(trigger == "hover" || trigger == "hoverEnter")
+                {
+                    action.eventType = EPrototypeEventType::HoverEnter;
+                }
+                else if(trigger == "hoverLeave")
+                {
+                    action.eventType = EPrototypeEventType::HoverLeave;
+                }
+                else if(trigger == "press")
+                {
+                    action.eventType = EPrototypeEventType::Press;
+                }
+                else if(trigger == "pointerDown")
+                {
+                    action.eventType = EPrototypeEventType::PointerDown;
+                }
+                else if(trigger == "pointerUp")
+                {
+                    action.eventType = EPrototypeEventType::PointerUp;
+                }
+                else if(trigger == "keyDown")
+                {
+                    action.eventType = EPrototypeEventType::KeyDown;
+                    action.keyCode = static_cast<std::uint32_t>(jsonNumber(jsonMember(item, "keyCode"), 0.0));
+                }
+                else if(trigger == "click")
+                {
+                    action.eventType = EPrototypeEventType::Click;
+                }
+                else
+                {
+                    action.eventType = EPrototypeEventType::Unsupported;
+                    if(_diagnostics != nullptr)
+                    {
+                        FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Warning, "ux_action_trigger_unsupported", "Action entry has an unsupported trigger");
+                    }
+                }
                 _actions->emplace_back(std::move(action));
             }
         }
@@ -279,7 +318,7 @@ namespace Figma
         }
         else
         {
-            document->m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_thumbnail_missing", "thumbnail.png is missing");
+            FIGMA_DIAGNOSTICS_ADD(document->m_diagnostics, EDiagnosticSeverity::Warning, "fig_thumbnail_missing", "thumbnail.png is missing");
         }
 
         if(_options.extractImageAssets == true)
@@ -322,14 +361,14 @@ namespace Figma
 
         if(canvasBytes.size() < 9 || std::memcmp(canvasBytes.data(), Detail::KiwiPrefix, sizeof(Detail::KiwiPrefix) - 1) != 0)
         {
-            document->m_diagnostics.add(EDiagnosticSeverity::Error, "fig_canvas_bad_magic", "canvas.fig does not start with fig-kiwi");
+            FIGMA_DIAGNOSTICS_ADD(document->m_diagnostics, EDiagnosticSeverity::Error, "fig_canvas_bad_magic", "canvas.fig does not start with fig-kiwi");
             return EResult::UnsupportedFormat;
         }
 
         document->m_canvasVersion = static_cast<char>(canvasBytes[sizeof(Detail::KiwiPrefix) - 1]);
         if(document->m_canvasVersion != Detail::SupportedKiwiVersion)
         {
-            document->m_diagnostics.add(EDiagnosticSeverity::Error, "fig_canvas_unsupported_version", "canvas.fig uses an unsupported fig-kiwi revision");
+            FIGMA_DIAGNOSTICS_ADD(document->m_diagnostics, EDiagnosticSeverity::Error, "fig_canvas_unsupported_version", "canvas.fig uses an unsupported fig-kiwi revision");
             return EResult::UnsupportedFormat;
         }
 
@@ -340,7 +379,7 @@ namespace Figma
 
         if(decodeCanvas(_runtime, canvasBytes, document, &document->m_diagnostics) == false)
         {
-            document->m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_canvas_decoder_unsupported", "Binary fig-kiwi canvas decoding is not available for this file; render commands will be skipped until the required scene data is decoded");
+            FIGMA_DIAGNOSTICS_ADD(document->m_diagnostics, EDiagnosticSeverity::Warning, "fig_canvas_decoder_unsupported", "Binary fig-kiwi canvas decoding is not available for this file; render commands will be skipped until the required scene data is decoded");
         }
 
         if(document->m_fileName.empty() == true)

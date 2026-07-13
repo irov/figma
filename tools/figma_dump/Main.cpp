@@ -63,6 +63,8 @@ namespace
             return "NotFound";
         case Figma::EResult::InvalidState:
             return "InvalidState";
+        case Figma::EResult::VersionMismatch:
+            return "VersionMismatch";
         }
 
         return "Unknown";
@@ -492,10 +494,20 @@ namespace
         {
         case Figma::EPrototypeEventType::Click:
             return "Click";
-        case Figma::EPrototypeEventType::Hover:
-            return "Hover";
+        case Figma::EPrototypeEventType::HoverEnter:
+            return "HoverEnter";
+        case Figma::EPrototypeEventType::HoverLeave:
+            return "HoverLeave";
+        case Figma::EPrototypeEventType::Press:
+            return "Press";
+        case Figma::EPrototypeEventType::PointerDown:
+            return "PointerDown";
+        case Figma::EPrototypeEventType::PointerUp:
+            return "PointerUp";
         case Figma::EPrototypeEventType::AfterTimeout:
             return "AfterTimeout";
+        case Figma::EPrototypeEventType::KeyDown:
+            return "KeyDown";
         default:
             return "Unsupported";
         }
@@ -1383,7 +1395,7 @@ int main(int _argc, char ** _argv)
     }
 
     Figma::RuntimeInterface * runtimePtr = nullptr;
-    Figma::EResult result = Figma::createRuntime({}, &runtimePtr);
+    Figma::EResult result = Figma::createRuntime(Figma::FIGMA_SDK_VERSION, {}, &runtimePtr);
     if(result != Figma::EResult::Ok)
     {
         std::fprintf(stderr, "createRuntime failed: %s\n", resultToString(result));

@@ -16,12 +16,19 @@ namespace Figma
     //////////////////////////////////////////////////////////////////////////
     void Diagnostics::add(EDiagnosticSeverity _severity, const Char * _code, const Char * _message, const Char * _nodeId)
     {
+#if FIGMA_ENABLE_DIAGNOSTICS
         Diagnostic diagnostic(m_memory);
         diagnostic.severity = _severity;
         diagnostic.code = _code != nullptr ? _code : "";
         diagnostic.message = _message != nullptr ? _message : "";
         diagnostic.nodeId = _nodeId != nullptr ? _nodeId : "";
         m_items.emplace_back(std::move(diagnostic));
+#else
+        (void)_severity;
+        (void)_code;
+        (void)_message;
+        (void)_nodeId;
+#endif
     }
     //////////////////////////////////////////////////////////////////////////
     bool Diagnostics::hasErrors() const

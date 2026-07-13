@@ -26,20 +26,6 @@ namespace Figma
         Ellipse
     };
 
-    enum class ERenderTextAlignHorizontal
-    {
-        Left,
-        Center,
-        Right
-    };
-
-    enum class ERenderTextAlignVertical
-    {
-        Top,
-        Center,
-        Bottom
-    };
-
     enum class ERenderImageScaleMode
     {
         Stretch,
@@ -118,6 +104,8 @@ namespace Figma
 
         std::uint32_t getBatchCount() const override;
         EResult getBatch(std::uint32_t _index, RenderBatchDesc * const _batch) const override;
+        EResult getGeneratedTexture(std::uint32_t _index, RenderGeneratedTextureDesc * const _desc) const override;
+        EResult getGeneratedTextureTextLine(std::uint32_t _index, std::uint32_t _lineIndex, RenderGeneratedTextLineDesc * const _line) const override;
 
         void clear();
         RenderCommand & addCommand(ERenderCommandType _type);

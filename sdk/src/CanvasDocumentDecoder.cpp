@@ -1012,14 +1012,39 @@ namespace Figma
             return EPrototypeEventType::Click;
         }
 
-        if(_value == "ON_HOVER")
+        if(_value == "ON_HOVER" || _value == "MOUSE_ENTER")
         {
-            return EPrototypeEventType::Hover;
+            return EPrototypeEventType::HoverEnter;
+        }
+
+        if(_value == "MOUSE_LEAVE")
+        {
+            return EPrototypeEventType::HoverLeave;
+        }
+
+        if(_value == "ON_PRESS")
+        {
+            return EPrototypeEventType::Press;
+        }
+
+        if(_value == "MOUSE_DOWN")
+        {
+            return EPrototypeEventType::PointerDown;
+        }
+
+        if(_value == "MOUSE_UP")
+        {
+            return EPrototypeEventType::PointerUp;
         }
 
         if(_value == "AFTER_TIMEOUT")
         {
             return EPrototypeEventType::AfterTimeout;
+        }
+
+        if(_value == "ON_KEY_DOWN" || _value == "KEY_DOWN")
+        {
+            return EPrototypeEventType::KeyDown;
         }
 
         return EPrototypeEventType::Unsupported;
@@ -1324,6 +1349,10 @@ namespace Figma
             else if(field->name == "transitionTimeout")
             {
                 _interaction->transitionTimeout = _reader.readVarFloat();
+            }
+            else if(field->name == "keyCode")
+            {
+                _interaction->keyCode = _reader.readVarUint();
             }
             else
             {
@@ -2314,6 +2343,7 @@ namespace Figma
         node.id = record.node.id;
         node.name = record.node.name;
         node.type = record.node.type;
+        node.size = record.size;
         node.opacity = record.node.opacity;
         node.cornerRadius = record.node.cornerRadius;
         node.strokeWeight = record.node.strokeWeight;

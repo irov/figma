@@ -190,6 +190,42 @@ namespace Figma
         return this->findAsset("thumbnail.png");
     }
     //////////////////////////////////////////////////////////////////////////
+    bool Document::getFrameRect(FigmaStringView _nodeId, Rectf * const _rect) const
+    {
+        if(_rect == nullptr)
+        {
+            return false;
+        }
+
+        const CanvasNodeDesc * node = this->findCanvasNodeDesc(_nodeId);
+        if(node == nullptr)
+        {
+            return false;
+        }
+
+        *_rect = node->rect;
+
+        return true;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    bool Document::getPrototypeStartFrameRect(Rectf * const _rect) const
+    {
+        if(_rect == nullptr)
+        {
+            return false;
+        }
+
+        const CanvasNodeDesc * node = this->getPrototypeStartFrameDesc();
+        if(node == nullptr)
+        {
+            return false;
+        }
+
+        *_rect = node->rect;
+
+        return true;
+    }
+    //////////////////////////////////////////////////////////////////////////
     const DocumentInspectionInterface * Document::getInspection() const
     {
         return this;

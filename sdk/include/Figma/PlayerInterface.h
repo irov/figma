@@ -61,6 +61,7 @@ namespace Figma
     struct PointerEvent
     {
         EPointerEventType type = EPointerEventType::Move;
+        std::uint32_t pointerId = 0;
         float x = 0.0f;
         float y = 0.0f;
         EPointerButton button = EPointerButton::None;
@@ -94,13 +95,21 @@ namespace Figma
         const void * ud = nullptr;
     };
 
+    struct InputDispatchResult
+    {
+        bool hit = false;
+        bool handled = false;
+        bool captured = false;
+    };
+
     class PlayerInterface
     {
     public:
         virtual EResult setActionRouter(ActionRouterInterface * _router) = 0;
         virtual EResult setDataContext(DataContextInterface * _context) = 0;
-        virtual EResult inputPointer(const PointerEvent & _event) = 0;
-        virtual EResult inputKey(const KeyEvent & _event) = 0;
+        virtual EResult setViewport(const ViewportDesc & _viewport) = 0;
+        virtual EResult inputPointer(const PointerEvent & _event, InputDispatchResult * const _dispatch = nullptr) = 0;
+        virtual EResult inputKey(const KeyEvent & _event, InputDispatchResult * const _dispatch = nullptr) = 0;
         virtual EResult update(float _dt) = 0;
         virtual EResult restart() = 0;
 
@@ -118,6 +127,12 @@ namespace Figma
 
     public:
         virtual void destroy() = 0;
+
+        virtual EResult hitTest(float _x, float _y, bool * const _hit) const = 0;
+        virtual EResult navigateToFrame(FigmaStringView _targetFrameId) = 0;
+        virtual EResult openOverlay(FigmaStringView _targetFrameId) = 0;
+        virtual EResult closeOverlay() = 0;
+        virtual EResult goBack() = 0;
 
     protected:
         ~PlayerInterface() = default;

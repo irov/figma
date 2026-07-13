@@ -2,6 +2,7 @@
 
 #include "Figma/ActionRouter.h"
 
+#include "DiagnosticsMacros.h"
 #include "PlayerFactory.h"
 #include "RenderList.h"
 
@@ -61,6 +62,126 @@ namespace Figma
         static bool contains(const Rectf & _rect, float _x, float _y)
         {
             return _x >= _rect.x && _y >= _rect.y && _x <= _rect.x + _rect.w && _y <= _rect.y + _rect.h;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static float cross(const Vec2f & _a, const Vec2f & _b, float _x, float _y)
+        {
+            return (_b.x - _a.x) * (_y - _a.y) - (_b.y - _a.y) * (_x - _a.x);
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool containsQuad(const Vec2f (&_quad)[4], float _x, float _y)
+        {
+            bool positive = false;
+            bool negative = false;
+
+            for(std::size_t index = 0; index != 4; ++index)
+            {
+                const Vec2f & a = _quad[index];
+                const Vec2f & b = _quad[(index + 1) % 4];
+                const float value = cross(a, b, _x, _y);
+
+                if(value > 0.0001f)
+                {
+                    positive = true;
+                }
+
+                if(value < -0.0001f)
+                {
+                    negative = true;
+                }
+            }
+
+            if(positive == true && negative == true)
+            {
+                return false;
+            }
+
+            return true;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool containsHotspot(const Rectf & _rect, const Vec2f (&_quad)[4], bool _hasClip, const Rectf & _clip, float _x, float _y)
+        {
+            if(_hasClip == true && contains(_clip, _x, _y) == false)
+            {
+                return false;
+            }
+
+            if(contains(_rect, _x, _y) == false)
+            {
+                return false;
+            }
+
+            if(containsQuad(_quad, _x, _y) == false)
+            {
+                return false;
+            }
+
+            return true;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static ETriggerType makeTriggerType(EPrototypeEventType _type)
+        {
+            switch(_type)
+            {
+            case EPrototypeEventType::Click:
+                return ETriggerType::Click;
+            case EPrototypeEventType::HoverEnter:
+                return ETriggerType::HoverEnter;
+            case EPrototypeEventType::HoverLeave:
+                return ETriggerType::HoverLeave;
+            case EPrototypeEventType::Press:
+                return ETriggerType::Press;
+            case EPrototypeEventType::PointerDown:
+                return ETriggerType::PointerDown;
+            case EPrototypeEventType::PointerUp:
+                return ETriggerType::PointerUp;
+            case EPrototypeEventType::AfterTimeout:
+                return ETriggerType::AfterTimeout;
+            case EPrototypeEventType::KeyDown:
+                return ETriggerType::KeyDown;
+            case EPrototypeEventType::Unsupported:
+                break;
+            }
+
+            return ETriggerType::Unsupported;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static EConnectionType makeConnectionType(EPrototypeConnectionType _type)
+        {
+            switch(_type)
+            {
+            case EPrototypeConnectionType::None:
+                return EConnectionType::None;
+            case EPrototypeConnectionType::InternalNode:
+                return EConnectionType::InternalNode;
+            case EPrototypeConnectionType::Back:
+                return EConnectionType::Back;
+            case EPrototypeConnectionType::Close:
+                return EConnectionType::Close;
+            case EPrototypeConnectionType::Unsupported:
+                break;
+            }
+
+            return EConnectionType::Unsupported;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static ENavigationType makeNavigationType(EPrototypeNavigationType _type)
+        {
+            switch(_type)
+            {
+            case EPrototypeNavigationType::Navigate:
+                return ENavigationType::Navigate;
+            case EPrototypeNavigationType::Overlay:
+                return ENavigationType::Overlay;
+            case EPrototypeNavigationType::Swap:
+                return ENavigationType::Swap;
+            case EPrototypeNavigationType::ScrollTo:
+                return ENavigationType::ScrollTo;
+            case EPrototypeNavigationType::Unsupported:
+                break;
+            }
+
+            return ENavigationType::Unsupported;
         }
         //////////////////////////////////////////////////////////////////////////
         static bool isSmartAnimateLayerMatch(const CanvasNodeDesc & _sourceNode, const CanvasNodeDesc & _targetNode)
@@ -1076,7 +1197,7 @@ namespace Figma
                 {
                     if(isFilterValueActive(_paint.filterColorAdjust[desc.index]) == true)
                     {
-                        _diagnostics->add(EDiagnosticSeverity::Warning, desc.code, desc.message, _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Warning, desc.code, desc.message, _node.id.c_str());
                     }
                 }
             }
@@ -1087,23 +1208,23 @@ namespace Figma
                 {
                     if(isFilterValueActive(_paint.paintFilter[desc.index]) == true)
                     {
-                        _diagnostics->add(EDiagnosticSeverity::Warning, desc.code, desc.message, _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Warning, desc.code, desc.message, _node.id.c_str());
                     }
                 }
             }
         }
         //////////////////////////////////////////////////////////////////////////
-        static void assignArcData(const CanvasNodeDesc & _node, RenderCommand * const _command)
+        static void assignArcData(const CanvasArcDataDesc & _arcData, RenderCommand * const _command)
         {
-            if(_node.arcData.valid == false)
+            if(_arcData.valid == false)
             {
                 return;
             }
 
             _command->hasArcDataValue = true;
-            _command->arcStartingAngle = _node.arcData.startingAngle;
-            _command->arcEndingAngle = _node.arcData.endingAngle;
-            _command->arcInnerRadius = _node.arcData.innerRadius;
+            _command->arcStartingAngle = _arcData.startingAngle;
+            _command->arcEndingAngle = _arcData.endingAngle;
+            _command->arcInnerRadius = _arcData.innerRadius;
         }
         //////////////////////////////////////////////////////////////////////////
         static void insetImageUvsToTexelCenters(RenderCommand * const _command, float _sourceWidth, float _sourceHeight)
@@ -1146,7 +1267,9 @@ namespace Figma
             }
         }
         //////////////////////////////////////////////////////////////////////////
-        static void addImageQuad(RenderCommand * const _command, const AssetDesc * _asset, const CanvasNodeDesc & _node)
+        static void makeRenderQuad(const Rectf & _nodeRect, const Vec2f * const _nodeQuad, const Rectf & _renderRect, Vec2f * const _renderQuad);
+        //////////////////////////////////////////////////////////////////////////
+        static void addImageQuad(RenderCommand * const _command, const AssetDesc * _asset, const Rectf & _nodeRect, const Vec2f * const _nodeQuad)
         {
             const Rectf rect = _command->rect;
             float x0 = rect.x;
@@ -1198,23 +1321,14 @@ namespace Figma
                 _command->rect = {x0, y0, x1 - x0, y1 - y0};
             }
 
-            const Color white{1.0f, 1.0f, 1.0f, _command->opacity};
+            const Color white{1.0f, 1.0f, 1.0f, 1.0f};
+            Vec2f quad[4];
+            makeRenderQuad(_nodeRect, _nodeQuad, _command->rect, quad);
             _command->vertices.resize(4);
-            _command->vertices[0] = {_node.quad[0].x, _node.quad[0].y, u0, v0, white};
-            _command->vertices[1] = {_node.quad[1].x, _node.quad[1].y, u1, v0, white};
-            _command->vertices[2] = {_node.quad[2].x, _node.quad[2].y, u1, v1, white};
-            _command->vertices[3] = {_node.quad[3].x, _node.quad[3].y, u0, v1, white};
-
-            const float shiftX = rect.x - _node.rect.x;
-            const float shiftY = rect.y - _node.rect.y;
-            if(std::fabs(shiftX) > 0.0001f || std::fabs(shiftY) > 0.0001f)
-            {
-                for(RenderVertex & vertex : _command->vertices)
-                {
-                    vertex.x += shiftX;
-                    vertex.y += shiftY;
-                }
-            }
+            _command->vertices[0] = {quad[0].x, quad[0].y, u0, v0, white};
+            _command->vertices[1] = {quad[1].x, quad[1].y, u1, v0, white};
+            _command->vertices[2] = {quad[2].x, quad[2].y, u1, v1, white};
+            _command->vertices[3] = {quad[3].x, quad[3].y, u0, v1, white};
 
             if(_command->hasImageTransformValue == true)
             {
@@ -1235,69 +1349,96 @@ namespace Figma
             _command->indices = {0, 1, 2, 0, 2, 3};
         }
         //////////////////////////////////////////////////////////////////////////
-        static void addTextQuad(RenderCommand * const _command)
+        static void makeRenderQuad(const Rectf & _nodeRect, const Vec2f * const _nodeQuad, const Rectf & _renderRect, Vec2f * const _renderQuad)
         {
-            const Rectf rect = _command->rect;
-            const float x0 = rect.x;
-            const float y0 = rect.y;
-            const float x1 = rect.x + rect.w;
-            const float y1 = rect.y + rect.h;
+            if(_nodeQuad == nullptr || _renderQuad == nullptr)
+            {
+                return;
+            }
+
+            if(std::fabs(_nodeRect.w) <= 0.0001f || std::fabs(_nodeRect.h) <= 0.0001f)
+            {
+                _renderQuad[0] = {_renderRect.x, _renderRect.y};
+                _renderQuad[1] = {_renderRect.x + _renderRect.w, _renderRect.y};
+                _renderQuad[2] = {_renderRect.x + _renderRect.w, _renderRect.y + _renderRect.h};
+                _renderQuad[3] = {_renderRect.x, _renderRect.y + _renderRect.h};
+                return;
+            }
+
+            for(std::size_t index = 0; index != 4; ++index)
+            {
+                const float normalizedX = (_nodeQuad[index].x - _nodeRect.x) / _nodeRect.w;
+                const float normalizedY = (_nodeQuad[index].y - _nodeRect.y) / _nodeRect.h;
+                _renderQuad[index].x = _renderRect.x + normalizedX * _renderRect.w;
+                _renderQuad[index].y = _renderRect.y + normalizedY * _renderRect.h;
+            }
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static void applyNodeQuad(RenderCommand * const _command, const Rectf & _nodeRect, const Vec2f * const _nodeQuad)
+        {
+            if(_command == nullptr || _command->vertices.empty() == true || std::fabs(_command->rect.w) <= 0.0001f || std::fabs(_command->rect.h) <= 0.0001f)
+            {
+                return;
+            }
+
+            Vec2f quad[4];
+            makeRenderQuad(_nodeRect, _nodeQuad, _command->rect, quad);
+
+            for(RenderVertex & vertex : _command->vertices)
+            {
+                const float normalizedX = (vertex.x - _command->rect.x) / _command->rect.w;
+                const float normalizedY = (vertex.y - _command->rect.y) / _command->rect.h;
+                const float topX = Detail::lerp(quad[0].x, quad[1].x, normalizedX);
+                const float topY = Detail::lerp(quad[0].y, quad[1].y, normalizedX);
+                const float bottomX = Detail::lerp(quad[3].x, quad[2].x, normalizedX);
+                const float bottomY = Detail::lerp(quad[3].y, quad[2].y, normalizedX);
+                vertex.x = Detail::lerp(topX, bottomX, normalizedY);
+                vertex.y = Detail::lerp(topY, bottomY, normalizedY);
+            }
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static void applyNodePathQuad(RenderCommand * const _command, const CanvasNodeDesc & _node, const Rectf & _nodeRect, const Vec2f * const _nodeQuad)
+        {
+            if(_command == nullptr || _command->vertices.empty() == true)
+            {
+                return;
+            }
+
+            const float localWidth = _node.size.x;
+            const float localHeight = _node.size.y;
+            if(localWidth <= 0.0001f || localHeight <= 0.0001f)
+            {
+                return;
+            }
+
+            Vec2f quad[4];
+            makeRenderQuad(_nodeRect, _nodeQuad, _command->rect, quad);
+
+            for(RenderVertex & vertex : _command->vertices)
+            {
+                const float normalizedX = (vertex.x - _command->rect.x) / localWidth;
+                const float normalizedY = (vertex.y - _command->rect.y) / localHeight;
+                const float topX = Detail::lerp(quad[0].x, quad[1].x, normalizedX);
+                const float topY = Detail::lerp(quad[0].y, quad[1].y, normalizedX);
+                const float bottomX = Detail::lerp(quad[3].x, quad[2].x, normalizedX);
+                const float bottomY = Detail::lerp(quad[3].y, quad[2].y, normalizedX);
+                vertex.x = Detail::lerp(topX, bottomX, normalizedY);
+                vertex.y = Detail::lerp(topY, bottomY, normalizedY);
+            }
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static void addTextQuad(RenderCommand * const _command, const Rectf & _nodeRect, const Vec2f * const _nodeQuad)
+        {
+            Vec2f quad[4];
+            makeRenderQuad(_nodeRect, _nodeQuad, _command->rect, quad);
             const Color white{1.0f, 1.0f, 1.0f, 1.0f};
 
             _command->vertices.resize(4);
-            _command->vertices[0] = {x0, y0, 0.0f, 0.0f, white};
-            _command->vertices[1] = {x1, y0, 1.0f, 0.0f, white};
-            _command->vertices[2] = {x1, y1, 1.0f, 1.0f, white};
-            _command->vertices[3] = {x0, y1, 0.0f, 1.0f, white};
+            _command->vertices[0] = {quad[0].x, quad[0].y, 0.0f, 0.0f, white};
+            _command->vertices[1] = {quad[1].x, quad[1].y, 1.0f, 0.0f, white};
+            _command->vertices[2] = {quad[2].x, quad[2].y, 1.0f, 1.0f, white};
+            _command->vertices[3] = {quad[3].x, quad[3].y, 0.0f, 1.0f, white};
             _command->indices = {0, 1, 2, 0, 2, 3};
-        }
-        //////////////////////////////////////////////////////////////////////////
-        static const PrototypeActionDesc * findPrototypeTargetAction(const PrototypeInteractionDesc & _interaction)
-        {
-            for(const PrototypeActionDesc & action : _interaction.actions)
-            {
-                if(action.targetNodeId.empty() == true)
-                {
-                    continue;
-                }
-
-                if(action.connectionType == EPrototypeConnectionType::InternalNode &&
-                    (action.navigationType == EPrototypeNavigationType::Navigate ||
-                        action.navigationType == EPrototypeNavigationType::Overlay ||
-                        action.navigationType == EPrototypeNavigationType::Swap))
-                {
-                    return &action;
-                }
-            }
-
-            return nullptr;
-        }
-        //////////////////////////////////////////////////////////////////////////
-        static bool isTargetlessInternalPrototypeAction(const PrototypeActionDesc & _action)
-        {
-            return _action.targetNodeId.empty() == true && _action.unsupportedFields.empty() == true &&
-                _action.connectionType == EPrototypeConnectionType::InternalNode &&
-                (_action.navigationType == EPrototypeNavigationType::Navigate ||
-                    _action.navigationType == EPrototypeNavigationType::Overlay ||
-                    _action.navigationType == EPrototypeNavigationType::Swap);
-        }
-        //////////////////////////////////////////////////////////////////////////
-        static bool hasOnlyTargetlessInternalPrototypeActions(const PrototypeInteractionDesc & _interaction)
-        {
-            if(_interaction.actions.empty() == true)
-            {
-                return false;
-            }
-
-            for(const PrototypeActionDesc & action : _interaction.actions)
-            {
-                if(isTargetlessInternalPrototypeAction(action) == false)
-                {
-                    return false;
-                }
-            }
-
-            return true;
         }
         //////////////////////////////////////////////////////////////////////////
         static void addUnsupportedPrototypeFieldDiagnostics(const UnsupportedFieldVector & _fields, const Char * _code, const Char * _message, const CanvasNodeDesc & _node, DiagnosticsInterface * const _diagnostics)
@@ -1308,7 +1449,7 @@ namespace Figma
                 message = _message;
                 message += ": ";
                 message += field;
-                _diagnostics->add(EDiagnosticSeverity::Warning, _code, message.c_str(), _node.id.c_str());
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Warning, _code, message.c_str(), _node.id.c_str());
             }
         }
     }
@@ -1338,6 +1479,7 @@ namespace Figma
         : sourceNodeId(_memory)
         , fromNodeId(_memory)
         , targetNodeId(_memory)
+        , tracks(_memory)
     {
     }
     //////////////////////////////////////////////////////////////////////////
@@ -1349,17 +1491,19 @@ namespace Figma
         , m_diagnostics(_memory)
         , m_hotspots(_memory)
         , m_hoveredNodeIds(_memory)
+        , m_firedTimerInteractionIds(_memory)
         , m_nodeSwaps(_memory)
         , m_localAnimations(_memory)
         , m_overrides(_memory)
+        , m_pointerCaptures(_memory)
+        , m_navigationHistory(_memory)
+        , m_overlayFrames(_memory)
+        , m_overlayStartTimes(_memory)
         , m_currentFrameId(_memory)
         , m_animationState(_memory)
     {
         const CanvasNodeDesc * initialFrame = this->resolveInitialFrame();
-        if(initialFrame != nullptr)
-        {
-            m_currentFrameId = initialFrame->id;
-        }
+        this->setCurrentFrame(initialFrame);
 
         this->update(0.0f);
     }
@@ -1381,95 +1525,233 @@ namespace Figma
         return EResult::Ok;
     }
     //////////////////////////////////////////////////////////////////////////
-    EResult Player::inputPointer(const PointerEvent & _event)
+    EResult Player::setViewport(const ViewportDesc & _viewport)
     {
-        if(m_animationState.active == true)
+        m_desc.viewport = _viewport;
+
+        m_hotspotsDirty = true;
+        this->rebuildHotspots();
+        this->rebuildRenderList();
+
+        return EResult::Ok;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Player::hitTest(float _x, float _y, bool * const _hit) const
+    {
+        if(_hit == nullptr)
         {
+            return EResult::InvalidArgument;
+        }
+
+        *_hit = false;
+
+        if(m_pointerCaptures.empty() == false)
+        {
+            *_hit = true;
             return EResult::Ok;
         }
 
-        if(_event.type == EPointerEventType::Move)
+        for(auto it = m_hotspots.rbegin(); it != m_hotspots.rend(); ++it)
         {
-            NodeIdSet hoveredNow(m_memory);
-            for(const Hotspot & hotspot : m_hotspots)
-            {
-                if(hotspot.eventType != EPrototypeEventType::Hover || Detail::contains(hotspot.rect, _event.x, _event.y) == false)
-                {
-                    continue;
-                }
-
-                hoveredNow.emplace(hotspot.nodeId);
-                if(m_hoveredNodeIds.find(hotspot.nodeId) == m_hoveredNodeIds.end())
-                {
-                    EResult result = this->routePointerAction(hotspot, _event);
-                    if(result != EResult::Ok)
-                    {
-                        return result;
-                    }
-                }
-            }
-
-            for(auto it = m_hoveredNodeIds.begin(); it != m_hoveredNodeIds.end();)
-            {
-                if(hoveredNow.find(*it) == hoveredNow.end())
-                {
-                    it = m_hoveredNodeIds.erase(it);
-                }
-                else
-                {
-                    ++it;
-                }
-            }
-
-            for(const FigmaString & nodeId : hoveredNow)
-            {
-                m_hoveredNodeIds.emplace(nodeId);
-            }
-
-            return EResult::Ok;
-        }
-
-        if(_event.type != EPointerEventType::Up)
-        {
-            return EResult::Ok;
-        }
-
-        for(const Hotspot & hotspot : m_hotspots)
-        {
-            if(hotspot.eventType != EPrototypeEventType::Click)
+            const Hotspot & hotspot = *it;
+            if(Detail::containsHotspot(hotspot.rect, hotspot.quad, hotspot.hasClip, hotspot.clip, _x, _y) == false)
             {
                 continue;
             }
 
-            if(Detail::contains(hotspot.rect, _event.x, _event.y) == true)
-            {
-                return this->routePointerAction(hotspot, _event);
-            }
+            *_hit = true;
+            break;
         }
 
         return EResult::Ok;
     }
     //////////////////////////////////////////////////////////////////////////
-    EResult Player::inputKey(const KeyEvent & _event)
+    EResult Player::inputPointer(const PointerEvent & _event, InputDispatchResult * const _dispatch)
     {
+        InputDispatchResult dispatch;
+        this->hitTest(_event.x, _event.y, &dispatch.hit);
+
+        auto captureIt = m_pointerCaptures.find(_event.pointerId);
+        dispatch.captured = captureIt != m_pointerCaptures.end();
+
         if(m_animationState.active == true)
         {
+            if(_dispatch != nullptr)
+            {
+                *_dispatch = dispatch;
+            }
+
             return EResult::Ok;
         }
 
-        if(_event.type != EKeyEventType::Down || m_actionRouter == nullptr)
+        EResult result = EResult::Ok;
+
+        if(_event.type == EPointerEventType::Move)
         {
-            return EResult::Ok;
+            const Hotspot * hotspot = this->findHotspot(_event.x, _event.y, EPrototypeEventType::HoverEnter);
+            NodeIdSet hoveredNow(m_memory);
+
+            if(hotspot != nullptr)
+            {
+                hoveredNow.emplace(hotspot->nodeId);
+                if(m_hoveredNodeIds.find(hotspot->nodeId) == m_hoveredNodeIds.end())
+                {
+                    result = this->routeHotspot(*hotspot, EActionInputKind::Pointer, &_event, nullptr);
+                    dispatch.handled = result == EResult::Ok;
+                }
+            }
+
+            for(const FigmaString & nodeId : m_hoveredNodeIds)
+            {
+                if(hoveredNow.find(nodeId) != hoveredNow.end())
+                {
+                    continue;
+                }
+
+                for(auto it = m_hotspots.rbegin(); it != m_hotspots.rend(); ++it)
+                {
+                    if(it->nodeId == nodeId && it->eventType == EPrototypeEventType::HoverLeave)
+                    {
+                        result = this->routeHotspot(*it, EActionInputKind::Pointer, &_event, nullptr);
+                        dispatch.handled = result == EResult::Ok;
+                        break;
+                    }
+                }
+            }
+
+            m_hoveredNodeIds = std::move(hoveredNow);
+        }
+        else if(_event.type == EPointerEventType::Down)
+        {
+            const Hotspot * downHotspot = this->findHotspot(_event.x, _event.y, EPrototypeEventType::PointerDown);
+            if(downHotspot == nullptr)
+            {
+                downHotspot = this->findHotspot(_event.x, _event.y, EPrototypeEventType::Press);
+            }
+
+            const Hotspot * clickHotspot = this->findHotspot(_event.x, _event.y, EPrototypeEventType::Click);
+            const Hotspot * captureHotspot = clickHotspot != nullptr ? clickHotspot : downHotspot;
+            if(captureHotspot != nullptr)
+            {
+                PointerCapture capture(m_memory);
+                capture.nodeId = captureHotspot->nodeId;
+                capture.button = _event.button;
+                if(captureHotspot->interaction != nullptr)
+                {
+                    capture.interactionId = captureHotspot->interaction->id;
+                }
+                else
+                {
+                    capture.interactionId = captureHotspot->actionId;
+                }
+
+                m_pointerCaptures.erase(_event.pointerId);
+                m_pointerCaptures.emplace(_event.pointerId, std::move(capture));
+                dispatch.captured = true;
+                dispatch.handled = true;
+            }
+
+            if(downHotspot != nullptr)
+            {
+                result = this->routeHotspot(*downHotspot, EActionInputKind::Pointer, &_event, nullptr);
+                dispatch.handled = result == EResult::Ok;
+            }
+        }
+        else if(_event.type == EPointerEventType::Up)
+        {
+            const Hotspot * upHotspot = this->findHotspot(_event.x, _event.y, EPrototypeEventType::PointerUp);
+            if(upHotspot != nullptr)
+            {
+                result = this->routeHotspot(*upHotspot, EActionInputKind::Pointer, &_event, nullptr);
+                dispatch.handled = result == EResult::Ok;
+            }
+
+            if(captureIt != m_pointerCaptures.end())
+            {
+                const PointerCapture capture = captureIt->second;
+                m_pointerCaptures.erase(captureIt);
+                dispatch.handled = true;
+                dispatch.captured = false;
+
+                if(capture.button == _event.button)
+                {
+                    for(auto it = m_hotspots.rbegin(); it != m_hotspots.rend(); ++it)
+                    {
+                        const Hotspot & clickHotspot = *it;
+                        if(clickHotspot.eventType != EPrototypeEventType::Click || clickHotspot.nodeId != capture.nodeId)
+                        {
+                            continue;
+                        }
+
+                        if(Detail::containsHotspot(clickHotspot.rect, clickHotspot.quad, clickHotspot.hasClip, clickHotspot.clip, _event.x, _event.y) == false)
+                        {
+                            continue;
+                        }
+
+                        result = this->routeHotspot(clickHotspot, EActionInputKind::Pointer, &_event, nullptr);
+                        dispatch.handled = result == EResult::Ok;
+                        if(result != EResult::Ok)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        else if(_event.type == EPointerEventType::Cancel)
+        {
+            if(captureIt != m_pointerCaptures.end())
+            {
+                m_pointerCaptures.erase(captureIt);
+                dispatch.handled = true;
+                dispatch.captured = false;
+            }
         }
 
-        ActionEvent event;
-        event.inputKind = EActionInputKind::Key;
-        event.currentFrameId = FigmaStringView(m_currentFrameId.data(), m_currentFrameId.size());
-        event.key = _event;
-        event.ud = m_desc.ud;
+        if(_dispatch != nullptr)
+        {
+            *_dispatch = dispatch;
+        }
 
-        ActionResponse response;
-        return m_actionRouter->routeAction(event, &response);
+        return result;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Player::inputKey(const KeyEvent & _event, InputDispatchResult * const _dispatch)
+    {
+        InputDispatchResult dispatch;
+
+        if(m_animationState.active == false && _event.type == EKeyEventType::Down)
+        {
+            for(auto it = m_hotspots.rbegin(); it != m_hotspots.rend(); ++it)
+            {
+                const Hotspot & hotspot = *it;
+                if(hotspot.eventType != EPrototypeEventType::KeyDown)
+                {
+                    continue;
+                }
+
+                if(hotspot.keyCode != 0 && hotspot.keyCode != _event.keyCode)
+                {
+                    continue;
+                }
+
+                const EResult result = this->routeHotspot(hotspot, EActionInputKind::Key, nullptr, &_event);
+                dispatch.handled = result == EResult::Ok;
+                if(_dispatch != nullptr)
+                {
+                    *_dispatch = dispatch;
+                }
+
+                return result;
+            }
+        }
+
+        if(_dispatch != nullptr)
+        {
+            *_dispatch = dispatch;
+        }
+
+        return EResult::Ok;
     }
     //////////////////////////////////////////////////////////////////////////
     EResult Player::update(float _dt)
@@ -1485,7 +1767,7 @@ namespace Figma
 
         for(const Diagnostic & diagnostic : documentDiagnostics->getItems())
         {
-            m_diagnostics.add(diagnostic.severity, diagnostic.code.c_str(), diagnostic.message.c_str(), diagnostic.nodeId.c_str());
+            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, diagnostic.severity, diagnostic.code.c_str(), diagnostic.message.c_str(), diagnostic.nodeId.c_str());
         }
 
         const float dt = std::max(0.0f, _dt);
@@ -1500,7 +1782,10 @@ namespace Figma
         {
             this->updatePrototypeTimers(dt);
         }
-        this->rebuildHotspots();
+        if(m_hotspotsDirty == true)
+        {
+            this->rebuildHotspots();
+        }
         this->rebuildRenderList();
 
         return EResult::Ok;
@@ -1508,16 +1793,19 @@ namespace Figma
     //////////////////////////////////////////////////////////////////////////
     EResult Player::restart()
     {
-        m_currentFrameId.clear();
-        if(const CanvasNodeDesc * initialFrame = this->resolveInitialFrame())
-        {
-            m_currentFrameId = initialFrame->id;
-        }
+        const CanvasNodeDesc * initialFrame = this->resolveInitialFrame();
+        this->setCurrentFrame(initialFrame);
 
         m_animationState = PlayerAnimationStateDesc(m_memory);
         m_hoveredNodeIds.clear();
+        m_firedTimerInteractionIds.clear();
+        m_pointerCaptures.clear();
         m_nodeSwaps.clear();
         m_localAnimations.clear();
+        m_navigationHistory.clear();
+        m_overlayFrames.clear();
+        m_overlayStartTimes.clear();
+        m_hotspotsDirty = true;
         m_time = 0.0f;
 
         return this->update(0.0f);
@@ -1581,6 +1869,7 @@ namespace Figma
         FigmaString key(_key.begin(), _key.end(), m_memory);
         m_overrides.erase(key);
         m_overrides.emplace(std::move(key), Detail::copyValue(m_memory, _value));
+        m_hotspotsDirty = true;
 
         return EResult::Ok;
     }
@@ -1594,6 +1883,7 @@ namespace Figma
 
         FigmaString key(_key.begin(), _key.end(), m_memory);
         m_overrides.erase(key);
+        m_hotspotsDirty = true;
 
         return EResult::Ok;
     }
@@ -1608,69 +1898,308 @@ namespace Figma
         return &m_diagnostics;
     }
     //////////////////////////////////////////////////////////////////////////
-    EResult Player::routePointerAction(const Hotspot & _hotspot, const PointerEvent & _event)
+    const Player::Hotspot * Player::findHotspot(float _x, float _y, EPrototypeEventType _eventType) const
     {
-        if(m_actionRouter == nullptr)
+        for(auto it = m_hotspots.rbegin(); it != m_hotspots.rend(); ++it)
         {
-            if(_hotspot.prototypeAction != nullptr && _hotspot.prototypeAction->navigationType == EPrototypeNavigationType::Swap)
+            const Hotspot & hotspot = *it;
+            if(hotspot.eventType != _eventType)
             {
-                return this->swapNodeState(_hotspot.nodeId, _hotspot.nodeId, *_hotspot.prototypeAction, 0.0f);
+                continue;
             }
 
-            if(_hotspot.targetFrameId.empty() == false)
+            if(Detail::containsHotspot(hotspot.rect, hotspot.quad, hotspot.hasClip, hotspot.clip, _x, _y) == false)
             {
-                return this->navigateToFrame(_hotspot.targetFrameId, _hotspot.prototypeAction, _hotspot.nodeId, 0.0f);
+                continue;
             }
 
+            return &hotspot;
+        }
+
+        return nullptr;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Player::routeHotspot(const Hotspot & _hotspot, EActionInputKind _inputKind, const PointerEvent * _pointer, const KeyEvent * _key, float _initialElapsed)
+    {
+        if(m_actionRouter != nullptr)
+        {
+            TriggerEvent trigger;
+            trigger.inputKind = _inputKind;
+            trigger.triggerType = Detail::makeTriggerType(_hotspot.eventType);
+            if(_hotspot.interaction != nullptr)
+            {
+                trigger.interactionId = _hotspot.interaction->id;
+            }
+            trigger.sourceNodeId = _hotspot.nodeId;
+            trigger.currentFrameId = m_currentFrameId;
+            if(_pointer != nullptr)
+            {
+                trigger.pointer = *_pointer;
+            }
+            if(_key != nullptr)
+            {
+                trigger.key = *_key;
+            }
+            trigger.ud = m_desc.ud;
+
+            const EResult triggerResult = m_actionRouter->routeTrigger(trigger);
+            if(triggerResult != EResult::Ok)
+            {
+                return triggerResult;
+            }
+        }
+
+        if(_hotspot.uxAction == true)
+        {
+            ActionResponse response;
+            if(m_actionRouter != nullptr)
+            {
+                ActionEvent event;
+                event.inputKind = _inputKind;
+                event.triggerType = Detail::makeTriggerType(_hotspot.eventType);
+                event.actionId = _hotspot.actionId;
+                event.sourceNodeId = _hotspot.nodeId;
+                event.currentFrameId = m_currentFrameId;
+                event.targetFrameId = _hotspot.targetFrameId;
+                if(_pointer != nullptr)
+                {
+                    event.pointer = *_pointer;
+                }
+                if(_key != nullptr)
+                {
+                    event.key = *_key;
+                }
+                event.ud = m_desc.ud;
+
+                const EResult actionResult = m_actionRouter->routeAction(event, &response);
+                if(actionResult != EResult::Ok)
+                {
+                    return actionResult;
+                }
+            }
+
+            return this->executeActionResponse(response, nullptr, _hotspot.nodeId, _hotspot.targetFrameId, _initialElapsed);
+        }
+
+        if(_hotspot.interaction == nullptr)
+        {
             return EResult::Ok;
         }
 
-        ActionEvent event;
-        event.inputKind = EActionInputKind::Pointer;
-        event.actionId = FigmaStringView(_hotspot.actionId.data(), _hotspot.actionId.size());
-        event.sourceNodeId = FigmaStringView(_hotspot.nodeId.data(), _hotspot.nodeId.size());
-        event.currentFrameId = FigmaStringView(m_currentFrameId.data(), m_currentFrameId.size());
-        event.pointer = _event;
-        event.ud = m_desc.ud;
-
-        ActionResponse response;
-        EResult result = m_actionRouter->routeAction(event, &response);
-        if(result != EResult::Ok)
+        for(const PrototypeActionDesc & action : _hotspot.interaction->actions)
         {
-            return result;
-        }
-
-        if(response.result == EActionResult::NavigateFrame || response.result == EActionResult::OpenOverlay)
-        {
-            if(response.targetFrameId.empty() == false)
+            const EResult result = this->routePrototypeAction(_hotspot, action, _inputKind, _pointer, _key, _initialElapsed);
+            if(result != EResult::Ok)
             {
-                const FigmaStringView hotspotTargetFrameId(_hotspot.targetFrameId.data(), _hotspot.targetFrameId.size());
-                const PrototypeActionDesc * action = response.targetFrameId == hotspotTargetFrameId ? _hotspot.prototypeAction : nullptr;
-                if(action != nullptr && action->navigationType == EPrototypeNavigationType::Swap)
-                {
-                    return this->swapNodeState(_hotspot.nodeId, _hotspot.nodeId, *action, 0.0f);
-                }
-                return this->navigateToFrame(response.targetFrameId, action, _hotspot.nodeId, 0.0f);
+                return result;
             }
-            else if(_hotspot.targetFrameId.empty() == false)
-            {
-                if(_hotspot.prototypeAction != nullptr && _hotspot.prototypeAction->navigationType == EPrototypeNavigationType::Swap)
-                {
-                    return this->swapNodeState(_hotspot.nodeId, _hotspot.nodeId, *_hotspot.prototypeAction, 0.0f);
-                }
-                return this->navigateToFrame(_hotspot.targetFrameId, _hotspot.prototypeAction, _hotspot.nodeId, 0.0f);
-            }
-        }
-        else if(response.result == EActionResult::AllowDefault && _hotspot.targetFrameId.empty() == false)
-        {
-            if(_hotspot.prototypeAction != nullptr && _hotspot.prototypeAction->navigationType == EPrototypeNavigationType::Swap)
-            {
-                return this->swapNodeState(_hotspot.nodeId, _hotspot.nodeId, *_hotspot.prototypeAction, 0.0f);
-            }
-            return this->navigateToFrame(_hotspot.targetFrameId, _hotspot.prototypeAction, _hotspot.nodeId, 0.0f);
         }
 
         return EResult::Ok;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Player::routePrototypeAction(const Hotspot & _hotspot, const PrototypeActionDesc & _action, EActionInputKind _inputKind, const PointerEvent * _pointer, const KeyEvent * _key, float _initialElapsed)
+    {
+        ActionResponse response;
+        if(m_actionRouter != nullptr)
+        {
+            const Char * actionId = "figma.prototype.navigate";
+            if(_action.connectionType == EPrototypeConnectionType::Back)
+            {
+                actionId = "figma.prototype.back";
+            }
+            else if(_action.connectionType == EPrototypeConnectionType::Close)
+            {
+                actionId = "figma.prototype.close";
+            }
+            else if(_action.navigationType == EPrototypeNavigationType::Overlay)
+            {
+                actionId = "figma.prototype.overlay";
+            }
+            else if(_action.navigationType == EPrototypeNavigationType::Swap)
+            {
+                actionId = "figma.prototype.swap";
+            }
+
+            ActionEvent event;
+            event.inputKind = _inputKind;
+            event.triggerType = Detail::makeTriggerType(_hotspot.eventType);
+            event.connectionType = Detail::makeConnectionType(_action.connectionType);
+            event.navigationType = Detail::makeNavigationType(_action.navigationType);
+            event.actionId = actionId;
+            if(_hotspot.interaction != nullptr)
+            {
+                event.interactionId = _hotspot.interaction->id;
+            }
+            event.sourceNodeId = _hotspot.nodeId;
+            event.currentFrameId = m_currentFrameId;
+            event.targetFrameId = _action.targetNodeId;
+            if(_pointer != nullptr)
+            {
+                event.pointer = *_pointer;
+            }
+            if(_key != nullptr)
+            {
+                event.key = *_key;
+            }
+            event.ud = m_desc.ud;
+
+            const EResult actionResult = m_actionRouter->routeAction(event, &response);
+            if(actionResult != EResult::Ok)
+            {
+                return actionResult;
+            }
+        }
+
+        return this->executeActionResponse(response, &_action, _hotspot.nodeId, _action.targetNodeId, _initialElapsed);
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Player::executeActionResponse(const ActionResponse & _response, const PrototypeActionDesc * _action, FigmaStringView _sourceNodeId, FigmaStringView _defaultTargetFrameId, float _initialElapsed)
+    {
+        if(_response.result == EActionResult::Consume)
+        {
+            return EResult::Ok;
+        }
+
+        if(_response.result == EActionResult::CloseOverlay)
+        {
+            return this->closeOverlay();
+        }
+
+        const FigmaStringView targetFrameId = _response.targetFrameId.empty() == false ? _response.targetFrameId : _defaultTargetFrameId;
+        if(_response.result == EActionResult::OpenOverlay)
+        {
+            return this->openOverlay(targetFrameId);
+        }
+
+        if(_response.result == EActionResult::NavigateFrame)
+        {
+            return this->navigateToFrame(targetFrameId, nullptr, _sourceNodeId, _initialElapsed);
+        }
+
+        if(_action != nullptr)
+        {
+            return this->executePrototypeAction(*_action, _sourceNodeId, _initialElapsed);
+        }
+
+        if(targetFrameId.empty() == false)
+        {
+            return this->navigateToFrame(targetFrameId, nullptr, _sourceNodeId, _initialElapsed);
+        }
+
+        return EResult::Ok;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Player::executePrototypeAction(const PrototypeActionDesc & _action, FigmaStringView _sourceNodeId, float _initialElapsed)
+    {
+        if(_action.connectionType == EPrototypeConnectionType::Back)
+        {
+            return this->goBack();
+        }
+
+        if(_action.connectionType == EPrototypeConnectionType::Close)
+        {
+            return this->closeOverlay();
+        }
+
+        if(_action.navigationType == EPrototypeNavigationType::Overlay)
+        {
+            return this->openOverlay(_action.targetNodeId);
+        }
+
+        if(_action.navigationType == EPrototypeNavigationType::Swap)
+        {
+            return this->swapNodeState(_sourceNodeId, _sourceNodeId, _action, _initialElapsed);
+        }
+
+        if(_action.navigationType == EPrototypeNavigationType::ScrollTo || _action.navigationType == EPrototypeNavigationType::Unsupported)
+        {
+            return EResult::InvalidState;
+        }
+
+        return this->navigateToFrame(_action.targetNodeId, &_action, _sourceNodeId, _initialElapsed);
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Player::navigateToFrame(FigmaStringView _targetFrameId)
+    {
+        return this->navigateToFrame(_targetFrameId, nullptr, FigmaStringView(), 0.0f);
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Player::openOverlay(FigmaStringView _targetFrameId)
+    {
+        if(_targetFrameId.empty() == true)
+        {
+            return EResult::InvalidArgument;
+        }
+
+        const CanvasNodeDesc * target = m_document.findCanvasNodeDesc(_targetFrameId);
+        if(target == nullptr)
+        {
+            return EResult::NotFound;
+        }
+
+        m_overlayFrames.emplace_back(target);
+        m_overlayStartTimes.emplace_back(m_time);
+        m_pointerCaptures.clear();
+        m_hoveredNodeIds.clear();
+        m_hotspotsDirty = true;
+        this->rebuildHotspots();
+        this->rebuildRenderList();
+
+        if(m_actionRouter != nullptr)
+        {
+            m_actionRouter->onOverlayOpened(target->id);
+        }
+
+        return EResult::Ok;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Player::closeOverlay()
+    {
+        if(m_overlayFrames.empty() == true)
+        {
+            return EResult::NotFound;
+        }
+
+        const CanvasNodeDesc * overlay = m_overlayFrames.back();
+        m_overlayFrames.pop_back();
+        m_overlayStartTimes.pop_back();
+        m_pointerCaptures.clear();
+        m_hoveredNodeIds.clear();
+        m_hotspotsDirty = true;
+        this->rebuildHotspots();
+        this->rebuildRenderList();
+
+        if(m_actionRouter != nullptr)
+        {
+            m_actionRouter->onOverlayClosed(overlay->id);
+        }
+
+        return EResult::Ok;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    EResult Player::goBack()
+    {
+        if(m_overlayFrames.empty() == false)
+        {
+            return this->closeOverlay();
+        }
+
+        if(m_navigationHistory.empty() == true)
+        {
+            return EResult::NotFound;
+        }
+
+        const CanvasNodeDesc * frame = m_navigationHistory.back();
+        m_navigationHistory.pop_back();
+        this->setCurrentFrame(frame);
+        m_nodeSwaps.clear();
+        m_localAnimations.clear();
+        m_pointerCaptures.clear();
+        m_hoveredNodeIds.clear();
+        m_time = 0.0f;
+
+        return this->update(0.0f);
     }
     //////////////////////////////////////////////////////////////////////////
     EResult Player::navigateToFrame(FigmaStringView _targetFrameId, const PrototypeActionDesc * _action, FigmaStringView _sourceNodeId, float _initialElapsed)
@@ -1688,19 +2217,26 @@ namespace Figma
         const CanvasNodeDesc * target = m_document.findCanvasNodeDesc(_targetFrameId);
         if(target == nullptr)
         {
-            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "Prototype action target node was not found in decoded document", FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory).c_str());
+            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "Prototype action target node was not found in decoded document", FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory).c_str());
             return EResult::NotFound;
         }
 
-        const CanvasNodeDesc * source = nullptr;
-        if(m_currentFrameId.empty() == false)
+        const CanvasNodeDesc * source = m_currentFrame;
+
+        if(source != nullptr && source != target)
         {
-            source = m_document.findCanvasNodeDesc(m_currentFrameId);
+            m_navigationHistory.emplace_back(source);
         }
 
-        if(source == nullptr)
+        while(m_overlayFrames.empty() == false)
         {
-            source = m_document.getPrototypeStartFrameDesc();
+            const CanvasNodeDesc * overlay = m_overlayFrames.back();
+            m_overlayFrames.pop_back();
+            m_overlayStartTimes.pop_back();
+            if(m_actionRouter != nullptr)
+            {
+                m_actionRouter->onOverlayClosed(overlay->id);
+            }
         }
 
         if(source != nullptr && _action != nullptr && (_action->smartAnimate == true || _action->transitionType == EPrototypeTransitionType::SmartAnimate || _action->transitionDuration > 0.0f))
@@ -1708,10 +2244,11 @@ namespace Figma
             return this->beginPrototypeAnimation(*source, *target, *_action, _sourceNodeId, _initialElapsed);
         }
 
-        m_currentFrameId = target->id;
+        this->setCurrentFrame(target);
         m_nodeSwaps.clear();
         m_localAnimations.clear();
         m_hoveredNodeIds.clear();
+        m_pointerCaptures.clear();
         m_time = 0.0f;
 
         return EResult::Ok;
@@ -1727,13 +2264,13 @@ namespace Figma
         const CanvasNodeDesc * target = m_document.findCanvasNodeDesc(_action.targetNodeId);
         if(target == nullptr)
         {
-            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "SWAP_STATE target node was not found in decoded document", FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory).c_str());
+            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "SWAP_STATE target node was not found in decoded document", FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory).c_str());
             return EResult::NotFound;
         }
 
         if(_action.transitionEasing == EAnimationEasing::Unsupported)
         {
-            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_animation_easing_unsupported", "SWAP_STATE easing is not implemented; state is changed without visual tweening", FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory).c_str());
+            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_animation_easing_unsupported", "SWAP_STATE easing is not implemented; state is changed without visual tweening", FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory).c_str());
         }
 
         const float duration = std::max(0.0f, _action.transitionDuration);
@@ -1747,8 +2284,23 @@ namespace Figma
         FigmaString key(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory);
         auto [it, inserted] = m_nodeSwaps.try_emplace(std::move(key), m_memory);
         (void)inserted;
+        FigmaString previousState(m_memory);
+        if(inserted == false)
+        {
+            previousState = it->second.currentNodeId;
+        }
+        else
+        {
+            previousState = FigmaString(_fromNodeId.begin(), _fromNodeId.end(), m_memory);
+        }
         it->second.currentNodeId = target->id;
         it->second.startedAt = m_time - std::max(0.0f, initialElapsed - duration);
+        m_hotspotsDirty = true;
+
+        if(m_actionRouter != nullptr)
+        {
+            m_actionRouter->onStateChanged(_sourceNodeId, previousState, target->id);
+        }
 
         return EResult::Ok;
     }
@@ -1759,7 +2311,7 @@ namespace Figma
         const float initialElapsed = std::max(0.0f, _initialElapsed);
         if(duration <= 0.0001f || initialElapsed >= duration)
         {
-            m_currentFrameId = _targetFrame.id;
+            this->setCurrentFrame(&_targetFrame);
             m_nodeSwaps.clear();
             m_localAnimations.clear();
             m_hoveredNodeIds.clear();
@@ -1783,10 +2335,11 @@ namespace Figma
         m_animationState.clip.transitionDirection = _action.transitionDirection;
         m_animationState.clip.easing = _action.transitionEasing;
         m_time = 0.0f;
+        m_hotspotsDirty = true;
 
         if(smartAnimate == true)
         {
-            this->collectSmartAnimateTracks(_sourceFrame, _targetFrame);
+            this->collectSmartAnimateTracks(_sourceFrame, _targetFrame, &m_animationState.clip.tracks);
         }
 
         return EResult::Ok;
@@ -1802,7 +2355,7 @@ namespace Figma
 
         if(fromNode == nullptr)
         {
-            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_source_missing", "SWAP_STATE source node was not found in decoded document", FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory).c_str());
+            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_prototype_source_missing", "SWAP_STATE source node was not found in decoded document", FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory).c_str());
             return EResult::NotFound;
         }
 
@@ -1824,10 +2377,17 @@ namespace Figma
         animation.targetNodeId = _targetNode.id;
         animation.transitionType = _action.transitionType;
         animation.easing = _action.transitionEasing;
+        animation.smartAnimate = _action.smartAnimate == true || _action.transitionType == EPrototypeTransitionType::SmartAnimate;
         animation.duration = std::max(0.0f, _action.transitionDuration);
         animation.elapsed = std::max(0.0f, std::min(animation.duration, _initialElapsed));
         animation.progress = Detail::clamp01(animation.elapsed / std::max(0.0001f, animation.duration));
         animation.active = true;
+
+        if(animation.smartAnimate == true)
+        {
+            this->collectSmartAnimateTracks(*fromNode, _targetNode, &animation.tracks);
+        }
+
         m_localAnimations.emplace_back(std::move(animation));
 
         return EResult::Ok;
@@ -1840,7 +2400,8 @@ namespace Figma
             return;
         }
 
-        m_currentFrameId = m_animationState.clip.targetFrameId;
+        const CanvasNodeDesc * targetFrame = m_document.findCanvasNodeDesc(m_animationState.clip.targetFrameId);
+        this->setCurrentFrame(targetFrame);
         m_animationState = PlayerAnimationStateDesc(m_memory);
         m_nodeSwaps.clear();
         m_localAnimations.clear();
@@ -1861,6 +2422,12 @@ namespace Figma
         it->second.currentNodeId = _animation->targetNodeId;
         it->second.startedAt = m_time;
         _animation->active = false;
+        m_hotspotsDirty = true;
+
+        if(m_actionRouter != nullptr)
+        {
+            m_actionRouter->onStateChanged(_animation->sourceNodeId, _animation->fromNodeId, _animation->targetNodeId);
+        }
     }
     //////////////////////////////////////////////////////////////////////////
     void Player::updateAnimation(float _dt)
@@ -1909,8 +2476,13 @@ namespace Figma
         }
     }
     //////////////////////////////////////////////////////////////////////////
-    void Player::collectSmartAnimateTracks(const CanvasNodeDesc & _sourceNode, const CanvasNodeDesc & _targetFrame)
+    void Player::collectSmartAnimateTracks(const CanvasNodeDesc & _sourceNode, const CanvasNodeDesc & _targetFrame, AnimationTrackVector * const _tracks)
     {
+        if(_tracks == nullptr)
+        {
+            return;
+        }
+
         Detail::CanvasNodeDescPtrVector usedTargets(m_memory);
         std::size_t sourceIndex = 0;
         for(const CanvasNodeDesc & child : _sourceNode.children)
@@ -1919,15 +2491,20 @@ namespace Figma
             if(targetChild != nullptr)
             {
                 usedTargets.emplace_back(targetChild);
-                this->collectSmartAnimateTracksForPair(child, *targetChild, _sourceNode.rect, _targetFrame.rect);
+                this->collectSmartAnimateTracksForPair(child, *targetChild, _sourceNode.rect, _targetFrame.rect, _tracks);
             }
 
             ++sourceIndex;
         }
     }
     //////////////////////////////////////////////////////////////////////////
-    void Player::collectSmartAnimateTracksForPair(const CanvasNodeDesc & _sourceNode, const CanvasNodeDesc & _targetNode, const Rectf & _sourceFrameRect, const Rectf & _targetFrameRect)
+    void Player::collectSmartAnimateTracksForPair(const CanvasNodeDesc & _sourceNode, const CanvasNodeDesc & _targetNode, const Rectf & _sourceFrameRect, const Rectf & _targetFrameRect, AnimationTrackVector * const _tracks)
     {
+        if(_tracks == nullptr)
+        {
+            return;
+        }
+
         if(_sourceNode.id.empty() == false && _targetNode.id.empty() == false)
         {
             const Rectf sourceRectInTargetFrame = {
@@ -1949,7 +2526,18 @@ namespace Figma
             rectTrack.to[1] = _targetNode.rect.y;
             rectTrack.to[2] = _targetNode.rect.w;
             rectTrack.to[3] = _targetNode.rect.h;
-            m_animationState.clip.tracks.emplace_back(std::move(rectTrack));
+
+            const float sourceOffsetX = _targetFrameRect.x - _sourceFrameRect.x;
+            const float sourceOffsetY = _targetFrameRect.y - _sourceFrameRect.y;
+            for(std::size_t index = 0; index != 4; ++index)
+            {
+                rectTrack.fromQuad[index].x = _sourceNode.quad[index].x + sourceOffsetX;
+                rectTrack.fromQuad[index].y = _sourceNode.quad[index].y + sourceOffsetY;
+                rectTrack.toQuad[index] = _targetNode.quad[index];
+            }
+
+            rectTrack.hasQuad = true;
+            _tracks->emplace_back(std::move(rectTrack));
 
             AnimationTrackDesc opacityTrack(m_memory);
             opacityTrack.nodeId = _sourceNode.id;
@@ -1957,7 +2545,22 @@ namespace Figma
             opacityTrack.type = EAnimationTrackType::Opacity;
             opacityTrack.from[0] = _sourceNode.opacity;
             opacityTrack.to[0] = _targetNode.opacity;
-            m_animationState.clip.tracks.emplace_back(std::move(opacityTrack));
+            _tracks->emplace_back(std::move(opacityTrack));
+
+            if(_sourceNode.arcData.valid == true && _targetNode.arcData.valid == true)
+            {
+                AnimationTrackDesc arcTrack(m_memory);
+                arcTrack.nodeId = _sourceNode.id;
+                arcTrack.targetNodeId = _targetNode.id;
+                arcTrack.type = EAnimationTrackType::Arc;
+                arcTrack.from[0] = _sourceNode.arcData.startingAngle;
+                arcTrack.from[1] = _sourceNode.arcData.endingAngle;
+                arcTrack.from[2] = _sourceNode.arcData.innerRadius;
+                arcTrack.to[0] = _targetNode.arcData.startingAngle;
+                arcTrack.to[1] = _targetNode.arcData.endingAngle;
+                arcTrack.to[2] = _targetNode.arcData.innerRadius;
+                _tracks->emplace_back(std::move(arcTrack));
+            }
         }
 
         Detail::CanvasNodeDescPtrVector usedTargets(m_memory);
@@ -1968,7 +2571,7 @@ namespace Figma
             if(targetChild != nullptr)
             {
                 usedTargets.emplace_back(targetChild);
-                this->collectSmartAnimateTracksForPair(sourceChild, *targetChild, _sourceFrameRect, _targetFrameRect);
+                this->collectSmartAnimateTracksForPair(sourceChild, *targetChild, _sourceFrameRect, _targetFrameRect, _tracks);
             }
 
             ++sourceIndex;
@@ -1977,16 +2580,8 @@ namespace Figma
     //////////////////////////////////////////////////////////////////////////
     void Player::updatePrototypeTimers(float _dt)
     {
-        const CanvasNodeDesc * frame = nullptr;
-        if(m_currentFrameId.empty() == false)
-        {
-            frame = m_document.findCanvasNodeDesc(m_currentFrameId);
-        }
-
-        if(frame == nullptr)
-        {
-            frame = m_document.getPrototypeStartFrameDesc();
-        }
+        const CanvasNodeDesc * frame = m_overlayFrames.empty() == false ? m_overlayFrames.back() : m_currentFrame;
+        const float frameStartedAt = m_overlayStartTimes.empty() == false ? m_overlayStartTimes.back() : 0.0f;
 
         if(frame == nullptr)
         {
@@ -2000,43 +2595,31 @@ namespace Figma
                 continue;
             }
 
-            if(m_time < std::max(0.0f, interaction.transitionTimeout))
+            if(m_time - frameStartedAt < std::max(0.0f, interaction.transitionTimeout))
             {
                 continue;
             }
 
-            const PrototypeActionDesc * action = Detail::findPrototypeTargetAction(interaction);
-            if(action == nullptr)
-            {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_action_unsupported", "AFTER_TIMEOUT interaction has no supported internal target action", frame->id.c_str());
-                continue;
-            }
-
-            const CanvasNodeDesc * target = m_document.findCanvasNodeDesc(action->targetNodeId);
-            if(target == nullptr)
-            {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "Prototype action target node was not found in decoded document", frame->id.c_str());
-                continue;
-            }
-
-            (void)target;
-            const float triggerTime = std::max(0.0f, interaction.transitionTimeout);
+            const float triggerTime = frameStartedAt + std::max(0.0f, interaction.transitionTimeout);
             const float previousTime = std::max(0.0f, m_time - std::max(0.0f, _dt));
             const float initialElapsed = previousTime < triggerTime ? m_time - triggerTime : 0.0f;
-            if(action->navigationType == EPrototypeNavigationType::Swap)
+            FigmaString timerId = frame->id + FigmaString( ":", m_memory ) + interaction.id;
+            if(m_firedTimerInteractionIds.find(timerId) != m_firedTimerInteractionIds.end())
             {
-                this->swapNodeState(frame->id, frame->id, *action, initialElapsed);
+                continue;
             }
-            else
-            {
-                this->navigateToFrame(action->targetNodeId, action, frame->id, initialElapsed);
-            }
+            m_firedTimerInteractionIds.emplace(std::move(timerId));
+            Hotspot hotspot(m_memory);
+            hotspot.nodeId = frame->id;
+            hotspot.interaction = &interaction;
+            hotspot.eventType = EPrototypeEventType::AfterTimeout;
+            this->routeHotspot(hotspot, EActionInputKind::Timer, nullptr, nullptr, initialElapsed);
             return;
         }
 
         for(const CanvasNodeDesc & child : frame->children)
         {
-            if(this->updatePrototypeTimersForNode(child, *frame, child.id, 0.0f, _dt) == true)
+            if(this->updatePrototypeTimersForNode(child, *frame, child.id, frameStartedAt, _dt) == true)
             {
                 return;
             }
@@ -2061,7 +2644,7 @@ namespace Figma
             const CanvasNodeDesc * swappedNode = m_document.findCanvasNodeDesc(swap->currentNodeId);
             if(swappedNode == nullptr)
             {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "SWAP_STATE current node was not found in decoded document", FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory).c_str());
+                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "SWAP_STATE current node was not found in decoded document", FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory).c_str());
                 return false;
             }
 
@@ -2081,32 +2664,22 @@ namespace Figma
                 continue;
             }
 
-            const PrototypeActionDesc * action = Detail::findPrototypeTargetAction(interaction);
-            if(action == nullptr)
-            {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_action_unsupported", "Nested AFTER_TIMEOUT interaction has no supported internal target action", currentNode->id.c_str());
-                continue;
-            }
-
-            const CanvasNodeDesc * target = m_document.findCanvasNodeDesc(action->targetNodeId);
-            if(target == nullptr)
-            {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "Prototype action target node was not found in decoded document", currentNode->id.c_str());
-                continue;
-            }
-
-            (void)target;
             const float triggerTime = startedAt + std::max(0.0f, interaction.transitionTimeout);
             const float previousTime = std::max(0.0f, m_time - std::max(0.0f, _dt));
             const float initialElapsed = previousTime < triggerTime ? m_time - triggerTime : 0.0f;
-            if(action->navigationType == EPrototypeNavigationType::Swap)
+            FigmaString timerId(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory);
+            timerId += ":";
+            timerId += interaction.id;
+            if(m_firedTimerInteractionIds.find(timerId) != m_firedTimerInteractionIds.end())
             {
-                this->swapNodeState(_sourceNodeId, currentNode->id, *action, initialElapsed);
+                continue;
             }
-            else
-            {
-                this->navigateToFrame(action->targetNodeId, action, currentNode->id, initialElapsed);
-            }
+            m_firedTimerInteractionIds.emplace(std::move(timerId));
+            Hotspot hotspot(m_memory);
+            hotspot.nodeId = FigmaString(_sourceNodeId.begin(), _sourceNodeId.end(), m_memory);
+            hotspot.interaction = &interaction;
+            hotspot.eventType = EPrototypeEventType::AfterTimeout;
+            this->routeHotspot(hotspot, EActionInputKind::Timer, nullptr, nullptr, initialElapsed);
 
             return true;
         }
@@ -2129,20 +2702,11 @@ namespace Figma
         const float width = std::max(1.0f, m_desc.viewport.width);
         const float height = std::max(1.0f, m_desc.viewport.height);
 
-        const CanvasNodeDesc * prototypeFrame = nullptr;
-        if(m_currentFrameId.empty() == false)
-        {
-            prototypeFrame = m_document.findCanvasNodeDesc(m_currentFrameId);
-        }
+        const CanvasNodeDesc * prototypeFrame = m_currentFrame;
 
         if(prototypeFrame == nullptr)
         {
-            prototypeFrame = m_document.getPrototypeStartFrameDesc();
-        }
-
-        if(prototypeFrame == nullptr)
-        {
-            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_start_missing", "Decoded prototypeStartNodeID/prototypeStartingPoint was not found; render list is empty");
+            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_prototype_start_missing", "Decoded prototypeStartNodeID/prototypeStartingPoint was not found; render list is empty");
             return;
         }
 
@@ -2161,9 +2725,9 @@ namespace Figma
 
             if(sourceFrame == nullptr || targetFrame == nullptr)
             {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_animation_frame_missing", "Animation source or target frame was not found; completing transition", m_animationState.clip.sourceNodeId.c_str());
+                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_animation_frame_missing", "Animation source or target frame was not found; completing transition", m_animationState.clip.sourceNodeId.c_str());
                 this->completeAnimation();
-                prototypeFrame = m_document.findCanvasNodeDesc(m_currentFrameId);
+                prototypeFrame = m_currentFrame;
                 if(prototypeFrame != nullptr)
                 {
                     this->appendCanvasNode(*prototypeFrame, 1.0f, -prototypeFrame->rect.x, -prototypeFrame->rect.y, nullptr);
@@ -2171,14 +2735,14 @@ namespace Figma
             }
             else if(m_animationState.clip.easing == EAnimationEasing::Unsupported)
             {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_animation_easing_unsupported", "Prototype transition easing is not implemented; visual animation is skipped until transition completes", m_animationState.clip.sourceNodeId.c_str());
+                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_animation_easing_unsupported", "Prototype transition easing is not implemented; visual animation is skipped until transition completes", m_animationState.clip.sourceNodeId.c_str());
                 this->appendCanvasNode(*sourceFrame, 1.0f, -sourceFrame->rect.x, -sourceFrame->rect.y, nullptr);
             }
             else if(m_animationState.clip.smartAnimate == true)
             {
                 if(m_animationState.clip.tracks.empty() == true)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_smart_animate_match_missing", "Smart Animate has no decoded node id or sibling layer matches in the decoded target frame; visual animation is skipped until transition completes", m_animationState.clip.sourceNodeId.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_smart_animate_match_missing", "Smart Animate has no decoded node id or sibling layer matches in the decoded target frame; visual animation is skipped until transition completes", m_animationState.clip.sourceNodeId.c_str());
                     this->appendCanvasNode(*sourceFrame, 1.0f, -sourceFrame->rect.x, -sourceFrame->rect.y, nullptr);
                 }
                 else
@@ -2210,11 +2774,30 @@ namespace Figma
                             const Rectf to{track.to[0], track.to[1], track.to[2], track.to[3]};
                             node.rect = Detail::lerpRect(from, to, progress);
                             node.hasRect = true;
+
+                            if(track.hasQuad == true)
+                            {
+                                for(std::size_t index = 0; index != 4; ++index)
+                                {
+                                    node.quad[index].x = Detail::lerp(track.fromQuad[index].x, track.toQuad[index].x, progress);
+                                    node.quad[index].y = Detail::lerp(track.fromQuad[index].y, track.toQuad[index].y, progress);
+                                }
+
+                                node.hasQuad = true;
+                            }
                         }
                         else if(track.type == EAnimationTrackType::Opacity)
                         {
                             node.opacity = Detail::lerp(track.from[0], track.to[0], progress);
                             node.hasOpacity = true;
+                        }
+                        else if(track.type == EAnimationTrackType::Arc)
+                        {
+                            node.arcData.startingAngle = Detail::lerp(track.from[0], track.to[0], progress);
+                            node.arcData.endingAngle = Detail::lerp(track.from[1], track.to[1], progress);
+                            node.arcData.innerRadius = Detail::lerp(track.from[2], track.to[2], progress);
+                            node.arcData.valid = true;
+                            node.hasArcData = true;
                         }
                     }
 
@@ -2230,7 +2813,7 @@ namespace Figma
 
                 AnimationRenderContext sourceLayer(m_memory);
                 sourceLayer.renderLayerId = 1;
-                sourceLayer.renderLayerOpacity = 1.0f - progress;
+                sourceLayer.renderLayerOpacity = 1.0f;
 
                 AnimationRenderContext targetLayer(m_memory);
                 targetLayer.renderLayerId = 2;
@@ -2252,9 +2835,57 @@ namespace Figma
                 this->appendCanvasNode(*sourceFrame, 1.0f, -sourceFrame->rect.x, -sourceFrame->rect.y, &sourceLayer);
                 this->appendCanvasNode(*targetFrame, 1.0f, -targetFrame->rect.x, -targetFrame->rect.y, &targetLayer);
             }
+            else if(m_animationState.clip.transitionType == EPrototypeTransitionType::MoveIn ||
+                m_animationState.clip.transitionType == EPrototypeTransitionType::MoveOut ||
+                m_animationState.clip.transitionType == EPrototypeTransitionType::Push ||
+                m_animationState.clip.transitionType == EPrototypeTransitionType::SlideIn ||
+                m_animationState.clip.transitionType == EPrototypeTransitionType::SlideOut)
+            {
+                float directionX = 0.0f;
+                float directionY = 0.0f;
+                if(m_animationState.clip.transitionDirection == EPrototypeTransitionDirection::Left)
+                {
+                    directionX = m_desc.viewport.width;
+                }
+                else if(m_animationState.clip.transitionDirection == EPrototypeTransitionDirection::Right)
+                {
+                    directionX = -m_desc.viewport.width;
+                }
+                else if(m_animationState.clip.transitionDirection == EPrototypeTransitionDirection::Up)
+                {
+                    directionY = m_desc.viewport.height;
+                }
+                else if(m_animationState.clip.transitionDirection == EPrototypeTransitionDirection::Down)
+                {
+                    directionY = -m_desc.viewport.height;
+                }
+
+                const bool moveOut = m_animationState.clip.transitionType == EPrototypeTransitionType::MoveOut ||
+                    m_animationState.clip.transitionType == EPrototypeTransitionType::SlideOut;
+                const bool push = m_animationState.clip.transitionType == EPrototypeTransitionType::Push;
+
+                if(moveOut == true)
+                {
+                    this->appendCanvasNode(*targetFrame, 1.0f, -targetFrame->rect.x, -targetFrame->rect.y, nullptr);
+                    this->appendCanvasNode(*sourceFrame, 1.0f, -sourceFrame->rect.x - directionX * progress, -sourceFrame->rect.y - directionY * progress, nullptr);
+                }
+                else
+                {
+                    if(push == true)
+                    {
+                        this->appendCanvasNode(*sourceFrame, 1.0f, -sourceFrame->rect.x - directionX * progress, -sourceFrame->rect.y - directionY * progress, nullptr);
+                    }
+                    else
+                    {
+                        this->appendCanvasNode(*sourceFrame, 1.0f, -sourceFrame->rect.x, -sourceFrame->rect.y, nullptr);
+                    }
+
+                    this->appendCanvasNode(*targetFrame, 1.0f, -targetFrame->rect.x + directionX * (1.0f - progress), -targetFrame->rect.y + directionY * (1.0f - progress), nullptr);
+                }
+            }
             else
             {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_transition_type_unsupported", "Prototype transition type is not implemented; visual animation is skipped until transition completes", m_animationState.clip.sourceNodeId.c_str());
+                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_transition_type_unsupported", "Prototype transition type is not implemented; visual animation is skipped until transition completes", m_animationState.clip.sourceNodeId.c_str());
                 this->appendCanvasNode(*sourceFrame, 1.0f, -sourceFrame->rect.x, -sourceFrame->rect.y, nullptr);
             }
         }
@@ -2263,12 +2894,19 @@ namespace Figma
             this->appendCanvasNode(*prototypeFrame, 1.0f, -prototypeFrame->rect.x, -prototypeFrame->rect.y, nullptr);
         }
 
+        for(const CanvasNodeDesc * overlay : m_overlayFrames)
+        {
+            const float offsetX = -overlay->rect.x + (m_desc.viewport.width - overlay->rect.w) * 0.5f;
+            const float offsetY = -overlay->rect.y + (m_desc.viewport.height - overlay->rect.h) * 0.5f;
+            this->appendCanvasNode(*overlay, 1.0f, offsetX, offsetY, nullptr);
+        }
+
         for(const BindingDesc & itemDesc : m_document.getBindings())
         {
             const CanvasNodeDesc * node = m_document.findCanvasNodeDesc(itemDesc.nodeId);
             if(node == nullptr)
             {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "ux_binding_node_missing", "Binding target node was not found in decoded document", itemDesc.nodeId.c_str());
+                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "ux_binding_node_missing", "Binding target node was not found in decoded document", itemDesc.nodeId.c_str());
             }
         }
 
@@ -2302,7 +2940,14 @@ namespace Figma
         }
 
         Rectf nodeRect = _node.rect;
+        Vec2f nodeQuad[4];
+        for(std::size_t index = 0; index != 4; ++index)
+        {
+            nodeQuad[index] = _node.quad[index];
+        }
+
         float nodeOpacity = _node.opacity;
+        CanvasArcDataDesc nodeArcData = _node.arcData;
         const bool animationRoot = _animation != nullptr && _animation->smartAnimate == true && _animation->rootNodeId == _node.id;
         bool skipOwnGeometry = false;
         const bool animationMatched = _animation != nullptr && _node.id.empty() == false && _animation->matchedNodeIds.find(_node.id) != _animation->matchedNodeIds.end();
@@ -2330,9 +2975,22 @@ namespace Figma
                         nodeRect = found->second.rect;
                     }
 
+                    if(found->second.hasQuad == true)
+                    {
+                        for(std::size_t index = 0; index != 4; ++index)
+                        {
+                            nodeQuad[index] = found->second.quad[index];
+                        }
+                    }
+
                     if(found->second.hasOpacity == true)
                     {
                         nodeOpacity = found->second.opacity;
+                    }
+
+                    if(found->second.hasArcData == true)
+                    {
+                        nodeArcData = found->second.arcData;
                     }
                 }
                 else if(animationRoot == false)
@@ -2360,11 +3018,76 @@ namespace Figma
                 const CanvasNodeDesc * targetNode = m_document.findCanvasNodeDesc(localAnimation->targetNodeId);
                 if(fromNode == nullptr || targetNode == nullptr)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "SWAP_STATE animation source or target node was not found in decoded document", _node.id.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "SWAP_STATE animation source or target node was not found in decoded document", _node.id.c_str());
                     return;
                 }
 
                 const float progress = Detail::applyEasing(localAnimation->easing, localAnimation->progress);
+                if(localAnimation->smartAnimate == true && localAnimation->tracks.empty() == false)
+                {
+                    AnimationRenderContext sourceAnimation(m_memory);
+                    sourceAnimation.rootNodeId = fromNode->id;
+                    sourceAnimation.progress = progress;
+                    sourceAnimation.smartAnimate = true;
+                    sourceAnimation.targetPass = false;
+                    sourceAnimation.skipRootGeometry = true;
+
+                    AnimationRenderContext targetAnimation(m_memory);
+                    targetAnimation.rootNodeId = targetNode->id;
+                    targetAnimation.progress = progress;
+                    targetAnimation.smartAnimate = true;
+                    targetAnimation.targetPass = true;
+
+                    for(const AnimationTrackDesc & track : localAnimation->tracks)
+                    {
+                        const FigmaString & targetNodeId = track.targetNodeId.empty() == false ? track.targetNodeId : track.nodeId;
+                        sourceAnimation.matchedNodeIds.emplace(track.nodeId);
+                        targetAnimation.matchedNodeIds.emplace(targetNodeId);
+                        AnimatedNodeDesc & animatedNode = targetAnimation.targetNodes[targetNodeId];
+                        animatedNode.matched = true;
+
+                        if(track.type == EAnimationTrackType::Rect)
+                        {
+                            const Rectf from{track.from[0], track.from[1], track.from[2], track.from[3]};
+                            const Rectf to{track.to[0], track.to[1], track.to[2], track.to[3]};
+                            animatedNode.rect = Detail::lerpRect(from, to, progress);
+                            animatedNode.hasRect = true;
+
+                            if(track.hasQuad == true)
+                            {
+                                for(std::size_t index = 0; index != 4; ++index)
+                                {
+                                    animatedNode.quad[index].x = Detail::lerp(track.fromQuad[index].x, track.toQuad[index].x, progress);
+                                    animatedNode.quad[index].y = Detail::lerp(track.fromQuad[index].y, track.toQuad[index].y, progress);
+                                }
+
+                                animatedNode.hasQuad = true;
+                            }
+                        }
+                        else if(track.type == EAnimationTrackType::Opacity)
+                        {
+                            animatedNode.opacity = Detail::lerp(track.from[0], track.to[0], progress);
+                            animatedNode.hasOpacity = true;
+                        }
+                        else if(track.type == EAnimationTrackType::Arc)
+                        {
+                            animatedNode.arcData.startingAngle = Detail::lerp(track.from[0], track.to[0], progress);
+                            animatedNode.arcData.endingAngle = Detail::lerp(track.from[1], track.to[1], progress);
+                            animatedNode.arcData.innerRadius = Detail::lerp(track.from[2], track.to[2], progress);
+                            animatedNode.arcData.valid = true;
+                            animatedNode.hasArcData = true;
+                        }
+                    }
+
+                    AnimatedNodeDesc & targetRootNode = targetAnimation.targetNodes[targetNode->id];
+                    targetRootNode.opacity = Detail::lerp(fromNode->opacity, targetNode->opacity, progress);
+                    targetRootNode.hasOpacity = true;
+
+                    this->appendCanvasNode(*fromNode, _parentOpacity, _offsetX + nodeRect.x - fromNode->rect.x, _offsetY + nodeRect.y - fromNode->rect.y, &sourceAnimation, renderLayerEnabled);
+                    this->appendCanvasNode(*targetNode, _parentOpacity, _offsetX + nodeRect.x - targetNode->rect.x, _offsetY + nodeRect.y - targetNode->rect.y, &targetAnimation, renderLayerEnabled);
+                    return;
+                }
+
                 AnimationRenderContext localRender(m_memory);
                 this->appendCanvasNode(*fromNode, _parentOpacity * (1.0f - progress), _offsetX + nodeRect.x - fromNode->rect.x, _offsetY + nodeRect.y - fromNode->rect.y, &localRender, renderLayerEnabled);
                 this->appendCanvasNode(*targetNode, _parentOpacity * progress, _offsetX + nodeRect.x - targetNode->rect.x, _offsetY + nodeRect.y - targetNode->rect.y, &localRender, renderLayerEnabled);
@@ -2377,7 +3100,7 @@ namespace Figma
                 const CanvasNodeDesc * swappedNode = m_document.findCanvasNodeDesc(swap->currentNodeId);
                 if(swappedNode == nullptr)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "SWAP_STATE current node was not found in decoded document", _node.id.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "SWAP_STATE current node was not found in decoded document", _node.id.c_str());
                     return;
                 }
 
@@ -2395,7 +3118,7 @@ namespace Figma
 
         if(_node.mask == true)
         {
-            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_mask_unsupported", "Decoded mask node is not rendered until mask/clip composition is implemented", _node.id.c_str());
+            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_mask_unsupported", "Decoded mask node is not rendered until mask/clip composition is implemented", _node.id.c_str());
             return;
         }
 
@@ -2403,7 +3126,7 @@ namespace Figma
         {
             if(interaction.eventType == EPrototypeEventType::Unsupported)
             {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_event_unsupported", "Prototype event type is not implemented; interaction skipped", _node.id.c_str());
+                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_prototype_event_unsupported", "Prototype event type is not implemented; interaction skipped", _node.id.c_str());
             }
             Detail::addUnsupportedPrototypeFieldDiagnostics(interaction.unsupportedFields, "fig_prototype_event_field_unsupported", "Prototype event field is not implemented", _node, &m_diagnostics);
 
@@ -2413,22 +3136,29 @@ namespace Figma
                 if(action.connectionType == EPrototypeConnectionType::Unsupported || action.navigationType == EPrototypeNavigationType::Unsupported ||
                     action.navigationType == EPrototypeNavigationType::ScrollTo)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_action_unsupported", "Prototype action field is not implemented; action skipped", _node.id.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_prototype_action_unsupported", "Prototype action field is not implemented; action skipped", _node.id.c_str());
                 }
                 else if(action.transitionType == EPrototypeTransitionType::Unsupported)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_transition_type_unsupported", "Prototype transition type is not implemented; action will not draw a guessed transition", _node.id.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_transition_type_unsupported", "Prototype transition type is not implemented; action will not draw a guessed transition", _node.id.c_str());
                 }
                 if(action.transitionPreserveScroll == true)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_transition_preserve_scroll_unsupported", "Prototype transition preserve-scroll behavior is not implemented", _node.id.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_transition_preserve_scroll_unsupported", "Prototype transition preserve-scroll behavior is not implemented", _node.id.c_str());
                 }
                 if(action.transitionResetVideoPosition == true)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_transition_reset_video_unsupported", "Prototype transition reset-video behavior is not implemented", _node.id.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_transition_reset_video_unsupported", "Prototype transition reset-video behavior is not implemented", _node.id.c_str());
                 }
             }
         }
+
+        const Rectf rect = {
+            nodeRect.x + _offsetX,
+            nodeRect.y + _offsetY,
+            nodeRect.w,
+            nodeRect.h
+        };
 
         const bool usePrimitiveShapeGeometry = Detail::canRenderPrimitiveShapeGeometry(_node);
         const bool hasFillPathGeometry = Detail::hasDecodedPathGeometry(_node.fillGeometry);
@@ -2438,7 +3168,7 @@ namespace Figma
         const bool unsupportedCompoundFillGeometry = useFillPathGeometry == true && Detail::hasCompoundPathGeometry(_node.fillGeometry) == true;
         if(unsupportedCompoundFillGeometry == true)
         {
-            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_path_compound_fill_unsupported", "Decoded fillGeometry has multiple contours; compound winding/hole triangulation is not implemented", _node.id.c_str());
+            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_path_compound_fill_unsupported", "Decoded fillGeometry has multiple contours; compound winding/hole triangulation is not implemented", _node.id.c_str());
             useFillPathGeometry = false;
         }
         const bool renderOwnGeometry = (_node.hasVectorDataValue == false && _node.type != ECanvasNodeType::Vector) || hasFillPathGeometry == true ||
@@ -2446,11 +3176,11 @@ namespace Figma
         const bool unsupportedNodeBlendMode = renderOwnGeometry == true && _node.blendMode == ECanvasBlendMode::Unsupported;
         if(renderOwnGeometry == false)
         {
-            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_vector_network_unsupported", "Decoded vectorData has no decoded fillGeometry/strokeGeometry path commands; vectorNetworkBlob is not implemented", _node.id.c_str());
+            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_vector_network_unsupported", "Decoded vectorData has no decoded fillGeometry/strokeGeometry path commands; vectorNetworkBlob is not implemented", _node.id.c_str());
         }
         if(unsupportedNodeBlendMode == true)
         {
-            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_node_blend_mode_unsupported", "Node blendMode is not implemented; node geometry command skipped", _node.id.c_str());
+            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_node_blend_mode_unsupported", "Node blendMode is not implemented; node geometry command skipped", _node.id.c_str());
             useFillPathGeometry = false;
             useStrokePathGeometry = false;
         }
@@ -2458,13 +3188,6 @@ namespace Figma
         skipOwnGeometry = skipOwnGeometry == true || (animationRoot == true && _animation->skipRootGeometry == true);
         if(renderOwnGeometry == true && unsupportedNodeBlendMode == false && skipOwnGeometry == false)
         {
-            const Rectf rect = {
-                nodeRect.x + _offsetX,
-                nodeRect.y + _offsetY,
-                nodeRect.w,
-                nodeRect.h
-            };
-
             if(_node.type != ECanvasNodeType::Text)
             {
                 const bool useFillPathPaints = useFillPathGeometry == true && Detail::hasPathPaints(_node.fillGeometry) == true;
@@ -2476,19 +3199,19 @@ namespace Figma
 
                     if(paint.type == ECanvasPaintType::Unsupported)
                     {
-                        m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_paint_type_unsupported", "Paint type is not implemented; command skipped", _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_paint_type_unsupported", "Paint type is not implemented; command skipped", _node.id.c_str());
                         return;
                     }
 
                     if(paint.blendMode == ECanvasBlendMode::Unsupported)
                     {
-                        m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_blend_mode_unsupported", "Paint blendMode is not implemented; command skipped", _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_blend_mode_unsupported", "Paint blendMode is not implemented; command skipped", _node.id.c_str());
                         return;
                     }
 
                     if(paint.type != ECanvasPaintType::Solid)
                     {
-                        m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_path_fill_paint_unsupported", "Path-level fill paint type is not implemented; command skipped", _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_path_fill_paint_unsupported", "Path-level fill paint type is not implemented; command skipped", _node.id.c_str());
                         return;
                     }
 
@@ -2503,11 +3226,15 @@ namespace Figma
                     fill.opacity = opacity * std::max(0.0f, std::min(1.0f, paint.opacity));
                     Detail::assignPaintMetadata(paint, &fill);
                     Detail::applyNodeBlendMode(_node, &fill);
-                    Detail::assignArcData(_node, &fill);
+                    Detail::assignArcData(nodeArcData, &fill);
                     if(Detail::buildPathMesh(m_memory, &fill, path, true) == false)
                     {
                         m_renderList.removeLastCommand();
-                        m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_shape_geometry_failed", "Unable to build graphics mesh for decoded path fill geometry; command skipped", _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_shape_geometry_failed", "Unable to build graphics mesh for decoded path fill geometry; command skipped", _node.id.c_str());
+                    }
+                    else
+                    {
+                        Detail::applyNodePathQuad(&fill, _node, nodeRect, nodeQuad);
                     }
                 };
 
@@ -2559,11 +3286,15 @@ namespace Figma
                         fill.cornerRadius = _node.cornerRadius;
                         fill.opacity = 1.0f;
                         Detail::applyNodeBlendMode(_node, &fill);
-                        Detail::assignArcData(_node, &fill);
+                        Detail::assignArcData(nodeArcData, &fill);
                         if(Detail::buildPathPaintMesh(m_memory, &fill, groupedPathFills, opacity) == false)
                         {
                             m_renderList.removeLastCommand();
-                            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_shape_geometry_failed", "Unable to build graphics mesh for decoded path fill geometry; command skipped", _node.id.c_str());
+                            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_shape_geometry_failed", "Unable to build graphics mesh for decoded path fill geometry; command skipped", _node.id.c_str());
+                        }
+                        else
+                        {
+                            Detail::applyNodePathQuad(&fill, _node, nodeRect, nodeQuad);
                         }
                     }
                     else
@@ -2589,13 +3320,13 @@ namespace Figma
 
                         if(paint.type == ECanvasPaintType::Unsupported)
                         {
-                            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_paint_type_unsupported", "Paint type is not implemented; command skipped", _node.id.c_str());
+                            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_paint_type_unsupported", "Paint type is not implemented; command skipped", _node.id.c_str());
                             continue;
                         }
 
                         if(paint.blendMode == ECanvasBlendMode::Unsupported)
                         {
-                            m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_blend_mode_unsupported", "Paint blendMode is not implemented; command skipped", _node.id.c_str());
+                            FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_blend_mode_unsupported", "Paint blendMode is not implemented; command skipped", _node.id.c_str());
                             continue;
                         }
 
@@ -2603,20 +3334,20 @@ namespace Figma
                         {
                             if(paint.assetId.empty() == true)
                             {
-                                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_image_asset_missing", "Image paint has no decoded image asset id; command skipped", _node.id.c_str());
+                                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_image_asset_missing", "Image paint has no decoded image asset id; command skipped", _node.id.c_str());
                                 continue;
                             }
 
                             const AssetDesc * asset = m_document.findAsset(paint.assetId);
                             if(asset == nullptr)
                             {
-                                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_image_asset_missing", "Decoded image asset is not present in the .fig archive; command skipped", _node.id.c_str());
+                                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_image_asset_missing", "Decoded image asset is not present in the .fig archive; command skipped", _node.id.c_str());
                                 continue;
                             }
 
                             if(paint.imageScaleMode == ECanvasImageScaleMode::Tile || paint.imageScaleMode == ECanvasImageScaleMode::Unknown)
                             {
-                                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_image_scale_mode_unsupported", "Image scale mode is not implemented; command skipped", _node.id.c_str());
+                                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_image_scale_mode_unsupported", "Image scale mode is not implemented; command skipped", _node.id.c_str());
                                 continue;
                             }
 
@@ -2627,7 +3358,7 @@ namespace Figma
                                 const AssetDesc * boundAsset = m_document.findAsset(boundAssetId);
                                 if(boundAsset == nullptr)
                                 {
-                                    m_diagnostics.add(EDiagnosticSeverity::Warning, "ux_binding_image_asset_missing", "Image binding resolved to an unknown asset id; decoded image command kept unchanged", _node.id.c_str());
+                                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "ux_binding_image_asset_missing", "Image binding resolved to an unknown asset id; decoded image command kept unchanged", _node.id.c_str());
                                 }
                                 else
                                 {
@@ -2649,7 +3380,7 @@ namespace Figma
                             image.opacity = opacity * std::max(0.0f, std::min(1.0f, paint.opacity));
                             Detail::assignPaintMetadata(paint, &image);
                             Detail::applyNodeBlendMode(_node, &image);
-                            Detail::addImageQuad(&image, asset, _node);
+                            Detail::addImageQuad(&image, asset, nodeRect, nodeQuad);
                         }
                         else if(paint.type == ECanvasPaintType::Solid)
                         {
@@ -2657,7 +3388,7 @@ namespace Figma
                             {
                                 if(unsupportedCompoundFillGeometry == false)
                                 {
-                                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_path_fill_unsupported", "Decoded fillGeometry cannot be rendered as a supported primitive or simple path", _node.id.c_str());
+                                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_path_fill_unsupported", "Decoded fillGeometry cannot be rendered as a supported primitive or simple path", _node.id.c_str());
                                 }
                                 continue;
                             }
@@ -2673,12 +3404,20 @@ namespace Figma
                             fill.opacity = opacity * std::max(0.0f, std::min(1.0f, paint.opacity));
                             Detail::assignPaintMetadata(paint, &fill);
                             Detail::applyNodeBlendMode(_node, &fill);
-                            Detail::assignArcData(_node, &fill);
+                            Detail::assignArcData(nodeArcData, &fill);
                             const bool meshBuilt = useFillPathGeometry == true ? Detail::buildPathMesh(m_memory, &fill, _node.fillGeometry, true) : Detail::buildShapeMesh(m_memory, &fill, true);
                             if(meshBuilt == false)
                             {
                                 m_renderList.removeLastCommand();
-                                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_shape_geometry_failed", "Unable to build graphics mesh for decoded fill geometry; command skipped", _node.id.c_str());
+                                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_shape_geometry_failed", "Unable to build graphics mesh for decoded fill geometry; command skipped", _node.id.c_str());
+                            }
+                            else if(useFillPathGeometry == false)
+                            {
+                                Detail::applyNodeQuad(&fill, nodeRect, nodeQuad);
+                            }
+                            else
+                            {
+                                Detail::applyNodePathQuad(&fill, _node, nodeRect, nodeQuad);
                             }
                         }
                     }
@@ -2698,13 +3437,13 @@ namespace Figma
 
                     if(paint.type != ECanvasPaintType::Solid)
                     {
-                        m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_stroke_paint_unsupported", "Only solid stroke paints are implemented; stroke command skipped", _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_stroke_paint_unsupported", "Only solid stroke paints are implemented; stroke command skipped", _node.id.c_str());
                         continue;
                     }
 
                     if(paint.blendMode == ECanvasBlendMode::Unsupported)
                     {
-                        m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_blend_mode_unsupported", "Paint blendMode is not implemented; stroke command skipped", _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_blend_mode_unsupported", "Paint blendMode is not implemented; stroke command skipped", _node.id.c_str());
                         continue;
                     }
 
@@ -2712,13 +3451,13 @@ namespace Figma
                         _node.strokeCap == ECanvasStrokeCap::Unsupported || _node.strokeJoin == ECanvasStrokeJoin::Unsupported ||
                         _node.dashPattern.empty() == false))
                     {
-                        m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_stroke_metadata_unsupported", "Decoded stroke metadata is not implemented; stroke command skipped", _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_stroke_metadata_unsupported", "Decoded stroke metadata is not implemented; stroke command skipped", _node.id.c_str());
                         continue;
                     }
 
                     if(useStrokePathGeometry == false && usePrimitiveShapeGeometry == false)
                     {
-                        m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_path_stroke_unsupported", "Decoded strokeGeometry cannot be rendered as a supported primitive or path", _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_path_stroke_unsupported", "Decoded strokeGeometry cannot be rendered as a supported primitive or path", _node.id.c_str());
                         continue;
                     }
 
@@ -2734,12 +3473,20 @@ namespace Figma
                     stroke.opacity = opacity * std::max(0.0f, std::min(1.0f, paint.opacity));
                     Detail::assignPaintMetadata(paint, &stroke);
                     Detail::applyNodeBlendMode(_node, &stroke);
-                    Detail::assignArcData(_node, &stroke);
+                    Detail::assignArcData(nodeArcData, &stroke);
                     const bool meshBuilt = useStrokePathGeometry == true ? Detail::buildPathMesh(m_memory, &stroke, _node.strokeGeometry, true) : Detail::buildShapeMesh(m_memory, &stroke, false, _node.strokeAlign);
                     if(meshBuilt == false)
                     {
                         m_renderList.removeLastCommand();
-                        m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_stroke_geometry_failed", "Unable to build graphics mesh for decoded stroke geometry; command skipped", _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_stroke_geometry_failed", "Unable to build graphics mesh for decoded stroke geometry; command skipped", _node.id.c_str());
+                    }
+                    else if(useStrokePathGeometry == false)
+                    {
+                        Detail::applyNodeQuad(&stroke, nodeRect, nodeQuad);
+                    }
+                    else
+                    {
+                        Detail::applyNodePathQuad(&stroke, _node, nodeRect, nodeQuad);
                     }
                 }
             }
@@ -2748,7 +3495,7 @@ namespace Figma
             {
                 if(_node.textLines.empty() == true)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_text_layout_missing", "Text node has no decoded derivedTextData/baselines; command skipped", _node.id.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_text_layout_missing", "Text node has no decoded derivedTextData/baselines; command skipped", _node.id.c_str());
                     return;
                 }
 
@@ -2766,19 +3513,19 @@ namespace Figma
 
                 if(textPaint == nullptr)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_text_fill_missing", "Text node has no visible decoded fill paint; command skipped", _node.id.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_text_fill_missing", "Text node has no visible decoded fill paint; command skipped", _node.id.c_str());
                     return;
                 }
 
                 if(textPaint->type != ECanvasPaintType::Solid)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_text_paint_unsupported", "Only solid text fill paints are implemented; text command skipped", _node.id.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_text_paint_unsupported", "Only solid text fill paints are implemented; text command skipped", _node.id.c_str());
                     return;
                 }
 
                 if(textPaint->blendMode == ECanvasBlendMode::Unsupported)
                 {
-                    m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_text_blend_mode_unsupported", "Text fill blendMode is not implemented; text command skipped", _node.id.c_str());
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_text_blend_mode_unsupported", "Text fill blendMode is not implemented; text command skipped", _node.id.c_str());
                     return;
                 }
 
@@ -2827,124 +3574,241 @@ namespace Figma
                     {
                         m_renderList.removeLastCommand();
                         textCommandRemoved = true;
-                        m_diagnostics.add(EDiagnosticSeverity::Warning, "ux_binding_text_layout_unsupported", "Text binding requires reshaping/reflow for this decoded text node; command skipped", _node.id.c_str());
+                        FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "ux_binding_text_layout_unsupported", "Text binding requires reshaping/reflow for this decoded text node; command skipped", _node.id.c_str());
                     }
                 }
 
                 if(textCommandRemoved == false)
                 {
-                    Detail::addTextQuad(&text);
+                    Detail::addTextQuad(&text, nodeRect, nodeQuad);
                 }
             }
+        }
+
+        const bool clipChildren = _node.type == ECanvasNodeType::Frame && _node.frameMaskDisabled == false && _node.children.empty() == false;
+
+        if(clipChildren == true)
+        {
+            RenderCommand & clip = m_renderList.addCommand(ERenderCommandType::ClipBegin);
+            assignRenderLayer(&clip);
+            clip.id = "figma.clip_begin";
+            clip.nodeId = _node.id;
+            clip.rect = rect;
         }
 
         for(auto it = _node.children.rbegin(); it != _node.children.rend(); ++it)
         {
             this->appendCanvasNode(*it, opacity, _offsetX, _offsetY, _animation, renderLayerEnabled);
         }
+
+        if(clipChildren == true)
+        {
+            RenderCommand & clip = m_renderList.addCommand(ERenderCommandType::ClipEnd);
+            assignRenderLayer(&clip);
+            clip.id = "figma.clip_end";
+            clip.nodeId = _node.id;
+            clip.rect = rect;
+        }
     }
     //////////////////////////////////////////////////////////////////////////
-    void Player::appendPrototypeHotspots(const CanvasNodeDesc & _node, const CanvasNodeDesc & _frame)
+    void Player::appendPrototypeHotspots(const CanvasNodeDesc & _node, const CanvasNodeDesc & _frame, float _offsetX, float _offsetY, const Rectf * _clip)
     {
+        (void)_frame;
+
         if(_node.visible == false || this->isNodeVisibleByBinding(_node) == false || this->isNodeEnabledByBinding(_node) == false)
         {
             return;
         }
 
+        const NodeSwapState * swap = this->findNodeSwapState(_node.id);
+        if(swap != nullptr)
+        {
+            const CanvasNodeDesc * swappedNode = m_document.findCanvasNodeDesc(swap->currentNodeId);
+            if(swappedNode != nullptr)
+            {
+                this->appendPrototypeHotspots(*swappedNode, _frame, _offsetX + _node.rect.x - swappedNode->rect.x, _offsetY + _node.rect.y - swappedNode->rect.y, _clip);
+            }
+            return;
+        }
+
+        Rectf nodeRect{
+            _node.rect.x + _offsetX,
+            _node.rect.y + _offsetY,
+            _node.rect.w,
+            _node.rect.h
+        };
+
+        Vec2f nodeQuad[4];
+        bool hasQuad = false;
+        for(std::size_t index = 0; index != 4; ++index)
+        {
+            nodeQuad[index].x = _node.quad[index].x + _offsetX;
+            nodeQuad[index].y = _node.quad[index].y + _offsetY;
+            hasQuad = hasQuad == true || _node.quad[index].x != 0.0f || _node.quad[index].y != 0.0f;
+        }
+
+        if(hasQuad == false)
+        {
+            nodeQuad[0] = {nodeRect.x, nodeRect.y};
+            nodeQuad[1] = {nodeRect.x + nodeRect.w, nodeRect.y};
+            nodeQuad[2] = {nodeRect.x + nodeRect.w, nodeRect.y + nodeRect.h};
+            nodeQuad[3] = {nodeRect.x, nodeRect.y + nodeRect.h};
+        }
+
+        float quadLeft = nodeQuad[0].x;
+        float quadTop = nodeQuad[0].y;
+        float quadRight = nodeQuad[0].x;
+        float quadBottom = nodeQuad[0].y;
+        for(std::size_t index = 1; index != 4; ++index)
+        {
+            quadLeft = std::min(quadLeft, nodeQuad[index].x);
+            quadTop = std::min(quadTop, nodeQuad[index].y);
+            quadRight = std::max(quadRight, nodeQuad[index].x);
+            quadBottom = std::max(quadBottom, nodeQuad[index].y);
+        }
+        nodeRect = {quadLeft, quadTop, quadRight - quadLeft, quadBottom - quadTop};
+
+        Rectf childClip{};
+        const Rectf * effectiveClip = _clip;
+        if(_node.type == ECanvasNodeType::Frame && _node.frameMaskDisabled == false)
+        {
+            childClip = nodeRect;
+            if(_clip != nullptr)
+            {
+                const float left = std::max(childClip.x, _clip->x);
+                const float top = std::max(childClip.y, _clip->y);
+                const float right = std::min(childClip.x + childClip.w, _clip->x + _clip->w);
+                const float bottom = std::min(childClip.y + childClip.h, _clip->y + _clip->h);
+                childClip = {left, top, std::max(0.0f, right - left), std::max(0.0f, bottom - top)};
+            }
+            effectiveClip = &childClip;
+        }
+
         for(const PrototypeInteractionDesc & interaction : _node.prototypeInteractions)
         {
-            if(interaction.eventType != EPrototypeEventType::Click && interaction.eventType != EPrototypeEventType::Hover)
+            if(interaction.eventType == EPrototypeEventType::AfterTimeout || interaction.eventType == EPrototypeEventType::Unsupported)
             {
-                continue;
-            }
-
-            const PrototypeActionDesc * action = Detail::findPrototypeTargetAction(interaction);
-            if(action == nullptr)
-            {
-                if(Detail::hasOnlyTargetlessInternalPrototypeActions(interaction) == true)
-                {
-                    continue;
-                }
-
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_action_unsupported", "ON_CLICK interaction has no supported internal target action", _node.id.c_str());
-                continue;
-            }
-
-            const CanvasNodeDesc * target = m_document.findCanvasNodeDesc(action->targetNodeId);
-            if(target == nullptr)
-            {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "Prototype action target node was not found in decoded document", _node.id.c_str());
                 continue;
             }
 
             Hotspot hotspot(m_memory);
-            hotspot.rect = {
-                _node.rect.x - _frame.rect.x,
-                _node.rect.y - _frame.rect.y,
-                _node.rect.w,
-                _node.rect.h
-            };
+            hotspot.rect = nodeRect;
+            for(std::size_t index = 0; index != 4; ++index)
+            {
+                hotspot.quad[index] = nodeQuad[index];
+            }
+            if(effectiveClip != nullptr)
+            {
+                hotspot.clip = *effectiveClip;
+                hotspot.hasClip = true;
+            }
             hotspot.nodeId = _node.id;
-            hotspot.actionId = "figma.prototype.navigate";
-            hotspot.targetFrameId = target->id;
-            hotspot.prototypeAction = action;
+            hotspot.interaction = &interaction;
             hotspot.eventType = interaction.eventType;
+            hotspot.keyCode = interaction.keyCode;
             m_hotspots.emplace_back(std::move(hotspot));
         }
 
-        for(const CanvasNodeDesc & child : _node.children)
+        for(auto it = _node.children.rbegin(); it != _node.children.rend(); ++it)
         {
-            this->appendPrototypeHotspots(child, _frame);
+            this->appendPrototypeHotspots(*it, _frame, _offsetX, _offsetY, effectiveClip);
         }
     }
     //////////////////////////////////////////////////////////////////////////
     void Player::rebuildHotspots()
     {
         m_hotspots.clear();
+        m_hotspotsDirty = false;
 
-        const CanvasNodeDesc * prototypeFrame = nullptr;
-        if(m_currentFrameId.empty() == false)
-        {
-            prototypeFrame = m_document.findCanvasNodeDesc(m_currentFrameId);
-        }
-
-        if(prototypeFrame == nullptr)
-        {
-            prototypeFrame = m_document.getPrototypeStartFrameDesc();
-        }
+        const CanvasNodeDesc * prototypeFrame = m_currentFrame;
 
         if(prototypeFrame == nullptr)
         {
             return;
         }
 
-        this->appendPrototypeHotspots(*prototypeFrame, *prototypeFrame);
+        Rectf viewportClip{0.0f, 0.0f, m_desc.viewport.width, m_desc.viewport.height};
+        this->appendPrototypeHotspots(*prototypeFrame, *prototypeFrame, -prototypeFrame->rect.x, -prototypeFrame->rect.y, &viewportClip);
+
+        for(const CanvasNodeDesc * overlay : m_overlayFrames)
+        {
+            const float offsetX = -overlay->rect.x + (m_desc.viewport.width - overlay->rect.w) * 0.5f;
+            const float offsetY = -overlay->rect.y + (m_desc.viewport.height - overlay->rect.h) * 0.5f;
+            this->appendPrototypeHotspots(*overlay, *overlay, offsetX, offsetY, &viewportClip);
+        }
 
         const ActionVector & actions = m_document.getActions();
         for(const ActionDesc & action : actions)
         {
-            const CanvasNodeDesc * node = m_document.findCanvasNodeDesc(action.nodeId);
-            if(node == nullptr)
+            if(action.eventType == EPrototypeEventType::Unsupported)
             {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "ux_action_node_missing", "Action target node was not found in decoded document", action.nodeId.c_str());
                 continue;
             }
 
-            if(node->visible == false || this->isNodeVisibleByBinding(*node) == false || this->isNodeEnabledByBinding(*node) == false)
+            const CanvasNodeDesc * node = m_document.findCanvasNodeDesc(action.nodeId);
+            if(node == nullptr)
+            {
+                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "ux_action_node_missing", "Action target node was not found in decoded document", action.nodeId.c_str());
+                continue;
+            }
+
+            const CanvasNodeDesc * ownerFrame = nullptr;
+            float offsetX = 0.0f;
+            float offsetY = 0.0f;
+            if(Detail::containsNode(*prototypeFrame, node) == true)
+            {
+                ownerFrame = prototypeFrame;
+                offsetX = -prototypeFrame->rect.x;
+                offsetY = -prototypeFrame->rect.y;
+            }
+
+            for(const CanvasNodeDesc * overlay : m_overlayFrames)
+            {
+                if(Detail::containsNode(*overlay, node) == true)
+                {
+                    ownerFrame = overlay;
+                    offsetX = -overlay->rect.x + (m_desc.viewport.width - overlay->rect.w) * 0.5f;
+                    offsetY = -overlay->rect.y + (m_desc.viewport.height - overlay->rect.h) * 0.5f;
+                }
+            }
+
+            if(ownerFrame == nullptr || node->visible == false || this->isNodeVisibleByBinding(*node) == false || this->isNodeEnabledByBinding(*node) == false)
             {
                 continue;
             }
 
             Hotspot hotspot(m_memory);
             hotspot.rect = {
-                node->rect.x - prototypeFrame->rect.x,
-                node->rect.y - prototypeFrame->rect.y,
+                node->rect.x + offsetX,
+                node->rect.y + offsetY,
                 node->rect.w,
                 node->rect.h
             };
+            bool hasActionQuad = false;
+            for(std::size_t index = 0; index != 4; ++index)
+            {
+                hotspot.quad[index].x = node->quad[index].x + offsetX;
+                hotspot.quad[index].y = node->quad[index].y + offsetY;
+                if(node->quad[index].x != 0.0f || node->quad[index].y != 0.0f)
+                {
+                    hasActionQuad = true;
+                }
+            }
+            if(hasActionQuad == false)
+            {
+                hotspot.quad[0] = {hotspot.rect.x, hotspot.rect.y};
+                hotspot.quad[1] = {hotspot.rect.x + hotspot.rect.w, hotspot.rect.y};
+                hotspot.quad[2] = {hotspot.rect.x + hotspot.rect.w, hotspot.rect.y + hotspot.rect.h};
+                hotspot.quad[3] = {hotspot.rect.x, hotspot.rect.y + hotspot.rect.h};
+            }
+            hotspot.clip = viewportClip;
+            hotspot.hasClip = true;
             hotspot.nodeId = action.nodeId;
             hotspot.actionId = action.actionId;
             hotspot.targetFrameId = action.targetFrameId;
+            hotspot.eventType = action.eventType;
+            hotspot.keyCode = action.keyCode;
+            hotspot.uxAction = true;
             m_hotspots.emplace_back(std::move(hotspot));
         }
     }
@@ -3027,7 +3891,7 @@ namespace Figma
 
             if(_node.type != ECanvasNodeType::Text)
             {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "ux_binding_text_target_invalid", "Text binding target is not a decoded text node; command skipped", _node.id.c_str());
+                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "ux_binding_text_target_invalid", "Text binding target is not a decoded text node; command skipped", _node.id.c_str());
                 return false;
             }
 
@@ -3061,7 +3925,7 @@ namespace Figma
 
             if(value.type != EBindingValueType::Image && value.type != EBindingValueType::Text)
             {
-                m_diagnostics.add(EDiagnosticSeverity::Warning, "ux_binding_image_value_invalid", "Image binding did not resolve to an asset id string; decoded image command kept unchanged", _node.id.c_str());
+                FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "ux_binding_image_value_invalid", "Image binding did not resolve to an asset id string; decoded image command kept unchanged", _node.id.c_str());
                 return false;
             }
 
@@ -3087,6 +3951,26 @@ namespace Figma
         }
 
         return value;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    void Player::setCurrentFrame(const CanvasNodeDesc * _frame)
+    {
+        FigmaString previousFrameId(m_currentFrameId.begin(), m_currentFrameId.end(), m_memory);
+        m_currentFrame = _frame;
+        m_currentFrameId.clear();
+
+        if(_frame != nullptr)
+        {
+            m_currentFrameId = _frame->id;
+        }
+
+        m_hotspotsDirty = true;
+        m_firedTimerInteractionIds.clear();
+
+        if(m_actionRouter != nullptr && previousFrameId != m_currentFrameId)
+        {
+            m_actionRouter->onFrameChanged(previousFrameId, m_currentFrameId);
+        }
     }
     //////////////////////////////////////////////////////////////////////////
     const CanvasNodeDesc * Player::resolveInitialFrame() const

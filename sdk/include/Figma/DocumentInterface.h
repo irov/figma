@@ -18,6 +18,8 @@ namespace Figma
     {
     public:
         virtual EResult loadUX(FigmaStringView _data) = 0;
+        virtual bool getFrameRect(FigmaStringView _nodeId, Rectf * const _rect) const = 0;
+        virtual bool getPrototypeStartFrameRect(Rectf * const _rect) const = 0;
         virtual const DiagnosticsInterface * getDiagnostics() const = 0;
 
     public:

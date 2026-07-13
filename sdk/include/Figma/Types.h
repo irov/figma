@@ -11,6 +11,14 @@
 #include <unordered_set>
 #include <vector>
 
+#if !defined(FIGMA_ENABLE_DIAGNOSTICS)
+#   if defined(NDEBUG)
+#       define FIGMA_ENABLE_DIAGNOSTICS 0
+#   else
+#       define FIGMA_ENABLE_DIAGNOSTICS 1
+#   endif
+#endif
+
 #if defined(FIGMA_STATIC)
 #   define FIGMA_EXPORT
 #elif defined(_WIN32)
@@ -27,6 +35,8 @@
 
 namespace Figma
 {
+    inline constexpr std::uint32_t FIGMA_SDK_VERSION = 3;
+
     using FigmaChar = char;
     using Char = FigmaChar;
     using FigmaMemoryResource = std::pmr::memory_resource;
@@ -68,7 +78,8 @@ namespace Figma
         UnsupportedFormat,
         MissingEntry,
         NotFound,
-        InvalidState
+        InvalidState,
+        VersionMismatch
     };
 
     struct Vec2f

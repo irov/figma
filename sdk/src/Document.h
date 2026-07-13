@@ -29,6 +29,8 @@ namespace Figma
         const AssetVector & getAssets() const;
         const AssetDesc * findAsset(FigmaStringView _assetId) const override;
         const AssetDesc * getThumbnailAsset() const;
+        bool getFrameRect(FigmaStringView _nodeId, Rectf * const _rect) const override;
+        bool getPrototypeStartFrameRect(Rectf * const _rect) const override;
         const DocumentInspectionInterface * getInspection() const;
         const CanvasNodeDesc * findCanvasNode(FigmaStringView _nodeId) const override;
         const CanvasNodeDesc * getCanvasRoot() const override;

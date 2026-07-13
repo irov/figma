@@ -1,6 +1,7 @@
 #include "CanvasDecoder.h"
 #include "CanvasDocumentDecoder.h"
 #include "CanvasSchema.h"
+#include "DiagnosticsMacros.h"
 #include "KiwiByteReader.h"
 
 #include <algorithm>
@@ -308,7 +309,7 @@ namespace Figma
             {
                 if(_diagnostics != nullptr)
                 {
-                    _diagnostics->add(EDiagnosticSeverity::Warning, "fig_canvas_decode_failed", "Unable to parse fig-kiwi chunk table");
+                    FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Warning, "fig_canvas_decode_failed", "Unable to parse fig-kiwi chunk table");
                 }
 
                 return false;
@@ -323,7 +324,7 @@ namespace Figma
             {
                 if(_diagnostics != nullptr)
                 {
-                    _diagnostics->add(EDiagnosticSeverity::Warning, "fig_canvas_inflate_failed", "Unable to inflate fig-kiwi schema or scene chunk");
+                    FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Warning, "fig_canvas_inflate_failed", "Unable to inflate fig-kiwi schema or scene chunk");
                 }
 
                 return false;
@@ -338,7 +339,7 @@ namespace Figma
             {
                 if(_diagnostics != nullptr)
                 {
-                    _diagnostics->add(EDiagnosticSeverity::Warning, "fig_canvas_decode_failed", "Unable to decode fig-kiwi scene graph");
+                    FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Warning, "fig_canvas_decode_failed", "Unable to decode fig-kiwi scene graph");
                 }
 
                 return false;
@@ -354,7 +355,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Warning, "fig_canvas_decode_failed", _exception.what());
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Warning, "fig_canvas_decode_failed", _exception.what());
             }
 
             return false;

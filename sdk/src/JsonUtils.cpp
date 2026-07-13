@@ -1,5 +1,7 @@
 #include "JsonUtils.h"
 
+#include "DiagnosticsMacros.h"
+
 #include <cstddef>
 #include <cstring>
 
@@ -48,7 +50,7 @@ namespace Figma
             JsonParseContext * context = static_cast<JsonParseContext *>(_userData);
             if(context != nullptr && context->diagnostics != nullptr)
             {
-                context->diagnostics->add(EDiagnosticSeverity::Error, "json_parse_failed", _message != nullptr ? _message : "JSON parse failed");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(context->diagnostics, EDiagnosticSeverity::Error, "json_parse_failed", _message != nullptr ? _message : "JSON parse failed");
             }
         }
     }
@@ -72,7 +74,7 @@ namespace Figma
         {
             if(_diagnostics != nullptr)
             {
-                _diagnostics->add(EDiagnosticSeverity::Error, "json_parse_failed", "Unable to parse JSON");
+                FIGMA_DIAGNOSTICS_ADD_POINTER(_diagnostics, EDiagnosticSeverity::Error, "json_parse_failed", "Unable to parse JSON");
             }
 
             return EResult::ParseFailed;

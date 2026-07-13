@@ -46,6 +46,8 @@ const char * resultToString(Figma::EResult _result)
         return "NotFound";
     case Figma::EResult::InvalidState:
         return "InvalidState";
+    case Figma::EResult::VersionMismatch:
+        return "VersionMismatch";
     }
 
     return "Unknown";
@@ -485,7 +487,7 @@ static void applyExposure(CGFloat * const _red, CGFloat * const _green, CGFloat 
     const CGFloat value = std::max<CGFloat>(-1.0, std::min<CGFloat>(1.0, _exposure));
     if(value > 0.0)
     {
-        const CGFloat lift = value * 0.96;
+        const CGFloat lift = value * 0.65;
         hsv.v = hsv.v + (1.0 - hsv.v) * lift;
         hsv.s *= 1.0 - value * 0.22;
     }

@@ -85,6 +85,7 @@ namespace Figma
         FigmaString rawEventType;
         EPrototypeEventType eventType = EPrototypeEventType::Unsupported;
         float transitionTimeout = 0.0f;
+        std::uint32_t keyCode = 0;
         PrototypeActionVector actions;
         UnsupportedFieldVector unsupportedFields;
     };
@@ -108,6 +109,7 @@ namespace Figma
         FigmaString id;
         FigmaString name;
         ECanvasNodeType type = ECanvasNodeType::Unknown;
+        Vec2f size;
         Rectf rect;
         Vec2f quad[4];
         float opacity = 1.0f;
