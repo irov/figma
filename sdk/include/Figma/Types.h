@@ -35,7 +35,7 @@
 
 namespace Figma
 {
-    inline constexpr std::uint32_t FIGMA_SDK_VERSION = 5;
+    inline constexpr std::uint32_t FIGMA_SDK_VERSION = 6;
 
     using FigmaChar = char;
     using Char = FigmaChar;

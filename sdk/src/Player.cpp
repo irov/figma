@@ -224,26 +224,208 @@ namespace Figma
                 almostEqual(_left.w, _right.w, _tolerance) == true && almostEqual(_left.h, _right.h, _tolerance) == true;
         }
         //////////////////////////////////////////////////////////////////////////
-        static bool hasDissolvePersistentIdentity(const CanvasNodeDesc & _sourceNode, const CanvasNodeDesc & _targetNode)
+        static bool vec2AlmostEqual(const Vec2f & _left, const Vec2f & _right, float _tolerance)
         {
-            if(_sourceNode.symbolId.empty() == false && _sourceNode.symbolId == _targetNode.symbolId)
-            {
-                return true;
-            }
-
-            return _sourceNode.id.empty() == false && _sourceNode.id == _targetNode.id;
+            return almostEqual(_left.x, _right.x, _tolerance) == true && almostEqual(_left.y, _right.y, _tolerance) == true;
         }
         //////////////////////////////////////////////////////////////////////////
-        static bool isDissolvePersistentNodeMatch(const CanvasNodeDesc & _sourceNode, const CanvasNodeDesc & _targetNode, const Rectf & _sourceFrameRect, const Rectf & _targetFrameRect)
+        static bool colorAlmostEqual(const Colorf & _left, const Colorf & _right, float _tolerance)
         {
-            if(_sourceNode.type != _targetNode.type || hasDissolvePersistentIdentity(_sourceNode, _targetNode) == false)
+            return almostEqual(_left.r, _right.r, _tolerance) == true && almostEqual(_left.g, _right.g, _tolerance) == true &&
+                almostEqual(_left.b, _right.b, _tolerance) == true && almostEqual(_left.a, _right.a, _tolerance) == true;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool isSameCanvasPaint(const CanvasPaint & _source, const CanvasPaint & _target)
+        {
+            if(_source.type != _target.type || _source.blendMode != _target.blendMode || _source.imageScaleMode != _target.imageScaleMode || _source.visible != _target.visible ||
+                _source.assetId != _target.assetId || _source.hasTransformValue != _target.hasTransformValue ||
+                _source.hasFilterColorAdjustValue != _target.hasFilterColorAdjustValue || _source.hasPaintFilterValue != _target.hasPaintFilterValue ||
+                _source.originalImageWidth != _target.originalImageWidth || _source.originalImageHeight != _target.originalImageHeight ||
+                almostEqual(_source.opacity, _target.opacity, 0.0001f) == false || colorAlmostEqual(_source.color, _target.color, 0.0001f) == false)
+            {
+                return false;
+            }
+
+            for(std::size_t index = 0; index != 6; ++index)
+            {
+                if(almostEqual(_source.transform[index], _target.transform[index], 0.0001f) == false)
+                {
+                    return false;
+                }
+            }
+
+            for(std::size_t index = 0; index != 8; ++index)
+            {
+                if(almostEqual(_source.filterColorAdjust[index], _target.filterColorAdjust[index], 0.0001f) == false)
+                {
+                    return false;
+                }
+            }
+
+            for(std::size_t index = 0; index != 10; ++index)
+            {
+                if(almostEqual(_source.paintFilter[index], _target.paintFilter[index], 0.0001f) == false)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool isSameCanvasPaintVector(const CanvasPaintVector & _source, const CanvasPaintVector & _target)
+        {
+            if(_source.size() != _target.size())
+            {
+                return false;
+            }
+
+            for(std::size_t index = 0; index != _source.size(); ++index)
+            {
+                if(isSameCanvasPaint(_source[index], _target[index]) == false)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool isSameCanvasPathCommand(const CanvasPathCommandDesc & _source, const CanvasPathCommandDesc & _target)
+        {
+            return _source.type == _target.type && vec2AlmostEqual(_source.p0, _target.p0, 0.0001f) == true && vec2AlmostEqual(_source.p1, _target.p1, 0.0001f) == true &&
+                vec2AlmostEqual(_source.p2, _target.p2, 0.0001f) == true;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool isSameCanvasPath(const CanvasPathDesc & _source, const CanvasPathDesc & _target)
+        {
+            if(_source.windingRule != _target.windingRule || _source.commandsDecoded != _target.commandsDecoded || _source.commands.size() != _target.commands.size() ||
+                isSameCanvasPaintVector(_source.paints, _target.paints) == false)
+            {
+                return false;
+            }
+
+            for(std::size_t index = 0; index != _source.commands.size(); ++index)
+            {
+                if(isSameCanvasPathCommand(_source.commands[index], _target.commands[index]) == false)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool isSameCanvasPathVector(const CanvasPathVector & _source, const CanvasPathVector & _target)
+        {
+            if(_source.size() != _target.size())
+            {
+                return false;
+            }
+
+            for(std::size_t index = 0; index != _source.size(); ++index)
+            {
+                if(isSameCanvasPath(_source[index], _target[index]) == false)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool isSameCanvasTextLines(const CanvasTextLineVector & _source, const CanvasTextLineVector & _target)
+        {
+            if(_source.size() != _target.size())
+            {
+                return false;
+            }
+
+            for(std::size_t index = 0; index != _source.size(); ++index)
+            {
+                const CanvasTextLineDesc & source = _source[index];
+                const CanvasTextLineDesc & target = _target[index];
+                if(source.text != target.text || almostEqual(source.x, target.x, 0.0001f) == false || almostEqual(source.y, target.y, 0.0001f) == false ||
+                    almostEqual(source.width, target.width, 0.0001f) == false || almostEqual(source.lineHeight, target.lineHeight, 0.0001f) == false ||
+                    almostEqual(source.lineAscent, target.lineAscent, 0.0001f) == false)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool isSameFloatVector(const DashPatternVector & _source, const DashPatternVector & _target)
+        {
+            if(_source.size() != _target.size())
+            {
+                return false;
+            }
+
+            for(std::size_t index = 0; index != _source.size(); ++index)
+            {
+                if(almostEqual(_source[index], _target[index], 0.0001f) == false)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool isSmartAnimatePersistentLeaf(const CanvasNodeDesc & _sourceNode, const CanvasNodeDesc & _targetNode, const Rectf & _sourceFrameRect, const Rectf & _targetFrameRect)
+        {
+            const bool stableIdMatch = _sourceNode.id.empty() == false && _sourceNode.id == _targetNode.id;
+            const bool layerNameMatch = _sourceNode.name.empty() == false && _sourceNode.name == _targetNode.name;
+
+            if(_sourceNode.children.empty() == false || _targetNode.children.empty() == false || _sourceNode.type != _targetNode.type ||
+                (stableIdMatch == false && layerNameMatch == false) || vec2AlmostEqual(_sourceNode.size, _targetNode.size, 0.001f) == false)
             {
                 return false;
             }
 
             const Rectf sourceRect = frameLocalRect(_sourceNode.rect, _sourceFrameRect);
             const Rectf targetRect = frameLocalRect(_targetNode.rect, _targetFrameRect);
-            return rectAlmostEqual(sourceRect, targetRect, 1.0f);
+            if(rectAlmostEqual(sourceRect, targetRect, 0.001f) == false)
+            {
+                return false;
+            }
+
+            const float sourceOffsetX = _targetFrameRect.x - _sourceFrameRect.x;
+            const float sourceOffsetY = _targetFrameRect.y - _sourceFrameRect.y;
+            for(std::size_t index = 0; index != 4; ++index)
+            {
+                const Vec2f sourceQuad = {_sourceNode.quad[index].x + sourceOffsetX, _sourceNode.quad[index].y + sourceOffsetY};
+                if(vec2AlmostEqual(sourceQuad, _targetNode.quad[index], 0.001f) == false)
+                {
+                    return false;
+                }
+            }
+
+            if(_sourceNode.visible != _targetNode.visible || _sourceNode.mask != _targetNode.mask || _sourceNode.hasFillGeometryValue != _targetNode.hasFillGeometryValue ||
+                _sourceNode.hasStrokeGeometryValue != _targetNode.hasStrokeGeometryValue || _sourceNode.hasVectorDataValue != _targetNode.hasVectorDataValue ||
+                _sourceNode.hasVectorNetworkBlobValue != _targetNode.hasVectorNetworkBlobValue || _sourceNode.blendMode != _targetNode.blendMode ||
+                _sourceNode.strokeAlign != _targetNode.strokeAlign || _sourceNode.strokeCap != _targetNode.strokeCap || _sourceNode.strokeJoin != _targetNode.strokeJoin ||
+                _sourceNode.textAlignHorizontal != _targetNode.textAlignHorizontal || _sourceNode.textAlignVertical != _targetNode.textAlignVertical ||
+                _sourceNode.text != _targetNode.text || _sourceNode.fontFamily != _targetNode.fontFamily || _sourceNode.fontStyle != _targetNode.fontStyle ||
+                _sourceNode.fontPostscriptName != _targetNode.fontPostscriptName || _sourceNode.fontWeight != _targetNode.fontWeight ||
+                almostEqual(_sourceNode.opacity, _targetNode.opacity, 0.0001f) == false || almostEqual(_sourceNode.cornerRadius, _targetNode.cornerRadius, 0.0001f) == false ||
+                almostEqual(_sourceNode.strokeWeight, _targetNode.strokeWeight, 0.0001f) == false ||
+                almostEqual(_sourceNode.fontSize, _targetNode.fontSize, 0.0001f) == false || almostEqual(_sourceNode.lineHeight, _targetNode.lineHeight, 0.0001f) == false ||
+                _sourceNode.arcData.valid != _targetNode.arcData.valid || almostEqual(_sourceNode.arcData.startingAngle, _targetNode.arcData.startingAngle, 0.0001f) == false ||
+                almostEqual(_sourceNode.arcData.endingAngle, _targetNode.arcData.endingAngle, 0.0001f) == false ||
+                almostEqual(_sourceNode.arcData.innerRadius, _targetNode.arcData.innerRadius, 0.0001f) == false ||
+                isSameFloatVector(_sourceNode.dashPattern, _targetNode.dashPattern) == false || isSameCanvasPaintVector(_sourceNode.fills, _targetNode.fills) == false ||
+                isSameCanvasPaintVector(_sourceNode.strokes, _targetNode.strokes) == false ||
+                isSameCanvasPathVector(_sourceNode.fillGeometry, _targetNode.fillGeometry) == false ||
+                isSameCanvasPathVector(_sourceNode.strokeGeometry, _targetNode.strokeGeometry) == false ||
+                isSameCanvasTextLines(_sourceNode.textLines, _targetNode.textLines) == false)
+            {
+                return false;
+            }
+
+            return true;
         }
         //////////////////////////////////////////////////////////////////////////
         static bool containsNode(const CanvasNodeDesc & _root, const CanvasNodeDesc * const _node)
@@ -262,6 +444,33 @@ namespace Figma
             }
 
             return false;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool hasDissolvePersistentIdentity(const CanvasNodeDesc & _sourceNode, const CanvasNodeDesc & _targetNode)
+        {
+            if(_sourceNode.symbolId.empty() == false && _sourceNode.symbolId == _targetNode.symbolId)
+            {
+                return true;
+            }
+
+            return _sourceNode.id.empty() == false && _sourceNode.id == _targetNode.id;
+        }
+        //////////////////////////////////////////////////////////////////////////
+        static bool isDissolvePersistentNodeMatch(const CanvasNodeDesc & _sourceNode, const CanvasNodeDesc & _targetNode, const Rectf & _sourceFrameRect, const Rectf & _targetFrameRect)
+        {
+            if(isSmartAnimatePersistentLeaf(_sourceNode, _targetNode, _sourceFrameRect, _targetFrameRect) == true)
+            {
+                return true;
+            }
+
+            if(_sourceNode.type != _targetNode.type || hasDissolvePersistentIdentity(_sourceNode, _targetNode) == false)
+            {
+                return false;
+            }
+
+            const Rectf sourceRect = frameLocalRect(_sourceNode.rect, _sourceFrameRect);
+            const Rectf targetRect = frameLocalRect(_targetNode.rect, _targetFrameRect);
+            return rectAlmostEqual(sourceRect, targetRect, 1.0f);
         }
         //////////////////////////////////////////////////////////////////////////
         static bool isInsideUsedTargetNode(const CanvasNodeDesc * const _node, const CanvasNodeDescPtrVector & _usedTargets)
@@ -1454,6 +1663,7 @@ namespace Figma
         , matchedNodeIds(_memory)
         , skipNodeIds(_memory)
         , opaqueNodeIds(_memory)
+        , persistentSourceNodes(_memory)
         , rootNodeId(_memory)
     {
     }
@@ -2511,6 +2721,7 @@ namespace Figma
 
         if(_sourceNode.id.empty() == false && _targetNode.id.empty() == false)
         {
+            const bool persistent = Detail::isSmartAnimatePersistentLeaf(_sourceNode, _targetNode, _sourceFrameRect, _targetFrameRect);
             const Rectf sourceRectInTargetFrame = {
                 _targetFrameRect.x + (_sourceNode.rect.x - _sourceFrameRect.x),
                 _targetFrameRect.y + (_sourceNode.rect.y - _sourceFrameRect.y),
@@ -2541,6 +2752,8 @@ namespace Figma
             }
 
             rectTrack.hasQuad = true;
+            rectTrack.persistent = persistent;
+            rectTrack.persistentSourceNode = persistent == true ? &_sourceNode : nullptr;
             _tracks->emplace_back(std::move(rectTrack));
 
             AnimationTrackDesc opacityTrack(m_memory);
@@ -2549,6 +2762,8 @@ namespace Figma
             opacityTrack.type = EAnimationTrackType::Opacity;
             opacityTrack.from[0] = _sourceNode.opacity;
             opacityTrack.to[0] = _targetNode.opacity;
+            opacityTrack.persistent = persistent;
+            opacityTrack.persistentSourceNode = persistent == true ? &_sourceNode : nullptr;
             _tracks->emplace_back(std::move(opacityTrack));
 
             if(_sourceNode.arcData.valid == true && _targetNode.arcData.valid == true)
@@ -2563,6 +2778,8 @@ namespace Figma
                 arcTrack.to[0] = _targetNode.arcData.startingAngle;
                 arcTrack.to[1] = _targetNode.arcData.endingAngle;
                 arcTrack.to[2] = _targetNode.arcData.innerRadius;
+                arcTrack.persistent = persistent;
+                arcTrack.persistentSourceNode = persistent == true ? &_sourceNode : nullptr;
                 _tracks->emplace_back(std::move(arcTrack));
             }
         }
@@ -2769,6 +2986,10 @@ namespace Figma
                         const FigmaString & targetNodeId = track.targetNodeId.empty() == false ? track.targetNodeId : track.nodeId;
                         sourceAnimation.matchedNodeIds.emplace(track.nodeId);
                         targetAnimation.matchedNodeIds.emplace(targetNodeId);
+                        if(track.persistent == true)
+                        {
+                            targetAnimation.persistentSourceNodes[targetNodeId] = track.persistentSourceNode;
+                        }
                         AnimatedNodeDesc & node = targetAnimation.targetNodes[targetNodeId];
                         node.matched = true;
 
@@ -2816,8 +3037,9 @@ namespace Figma
                 Detail::collectDissolvePersistentNodes(*sourceFrame, *targetFrame, sourceFrame->rect, targetFrame->rect, &usedTargets, &persistentNodes);
 
                 AnimationRenderContext sourceLayer(m_memory);
+                sourceLayer.preserveNodeSwapState = true;
                 sourceLayer.renderLayerId = 1;
-                sourceLayer.renderLayerOpacity = 1.0f;
+                sourceLayer.renderLayerOpacity = 1.0f - progress;
 
                 AnimationRenderContext targetLayer(m_memory);
                 targetLayer.renderLayerId = 2;
@@ -2937,6 +3159,31 @@ namespace Figma
             return;
         }
 
+        if(_animation != nullptr && _animation->preserveNodeSwapState == true)
+        {
+            const NodeSwapState * swap = this->findNodeSwapState(_node.id);
+            if(swap != nullptr)
+            {
+                const CanvasNodeDesc * swappedNode = m_document.findCanvasNodeDesc(swap->currentNodeId);
+                if(swappedNode == nullptr)
+                {
+                    FIGMA_DIAGNOSTICS_ADD(m_diagnostics, EDiagnosticSeverity::Warning, "fig_prototype_target_missing", "SWAP_STATE current node was not found in decoded document", _node.id.c_str());
+                    return;
+                }
+
+                if(swappedNode != &_node)
+                {
+                    this->appendCanvasNode(*swappedNode,
+                        _parentOpacity,
+                        _offsetX + _node.rect.x - swappedNode->rect.x,
+                        _offsetY + _node.rect.y - swappedNode->rect.y,
+                        _animation,
+                        _renderLayerEnabled);
+                    return;
+                }
+            }
+        }
+
         bool renderLayerEnabled = _renderLayerEnabled;
         if(_animation != nullptr && _node.id.empty() == false && _animation->opaqueNodeIds.find(_node.id) != _animation->opaqueNodeIds.end())
         {
@@ -2957,14 +3204,30 @@ namespace Figma
         const bool animationMatched = _animation != nullptr && _node.id.empty() == false && _animation->matchedNodeIds.find(_node.id) != _animation->matchedNodeIds.end();
         if(_animation != nullptr && _animation->smartAnimate == true)
         {
+            if(_animation->targetPass == true && _node.id.empty() == false)
+            {
+                const auto persistent = _animation->persistentSourceNodes.find(_node.id);
+                if(persistent != _animation->persistentSourceNodes.end() && persistent->second != nullptr)
+                {
+                    const CanvasNodeDesc * sourceNode = persistent->second;
+                    AnimationRenderContext persistentRender(m_memory);
+                    this->appendCanvasNode(*sourceNode,
+                        _parentOpacity,
+                        _offsetX + nodeRect.x - sourceNode->rect.x,
+                        _offsetY + nodeRect.y - sourceNode->rect.y,
+                        &persistentRender,
+                        renderLayerEnabled);
+                    return;
+                }
+            }
+
             if(_animation->targetPass == false)
             {
                 if(animationMatched == true)
                 {
-                    return;
+                    skipOwnGeometry = true;
                 }
-
-                if(animationRoot == false)
+                else if(animationRoot == false)
                 {
                     nodeOpacity *= 1.0f - _animation->progress;
                 }
@@ -3047,6 +3310,10 @@ namespace Figma
                         const FigmaString & targetNodeId = track.targetNodeId.empty() == false ? track.targetNodeId : track.nodeId;
                         sourceAnimation.matchedNodeIds.emplace(track.nodeId);
                         targetAnimation.matchedNodeIds.emplace(targetNodeId);
+                        if(track.persistent == true)
+                        {
+                            targetAnimation.persistentSourceNodes[targetNodeId] = track.persistentSourceNode;
+                        }
                         AnimatedNodeDesc & animatedNode = targetAnimation.targetNodes[targetNodeId];
                         animatedNode.matched = true;
 

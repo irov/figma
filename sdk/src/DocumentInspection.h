@@ -251,7 +251,9 @@ namespace Figma
         float to[4] = {};
         Vec2f fromQuad[4] = {};
         Vec2f toQuad[4] = {};
+        const CanvasNodeDesc * persistentSourceNode = nullptr;
         bool hasQuad = false;
+        bool persistent = false;
     };
 
     struct AnimationClipDesc

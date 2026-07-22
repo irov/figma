@@ -82,6 +82,7 @@ namespace Figma
 
         using AnimatedNodeMap = FigmaUnorderedMap<FigmaString, AnimatedNodeDesc>;
         using NodeIdSet = FigmaUnorderedSet<FigmaString>;
+        using PersistentSourceNodeMap = FigmaUnorderedMap<FigmaString, const CanvasNodeDesc *>;
 
         struct AnimationRenderContext
         {
@@ -91,11 +92,13 @@ namespace Figma
             NodeIdSet matchedNodeIds;
             NodeIdSet skipNodeIds;
             NodeIdSet opaqueNodeIds;
+            PersistentSourceNodeMap persistentSourceNodes;
             FigmaString rootNodeId;
             float progress = 0.0f;
             bool targetPass = false;
             bool smartAnimate = false;
             bool skipRootGeometry = false;
+            bool preserveNodeSwapState = false;
             std::uint32_t renderLayerId = 0;
             float renderLayerOpacity = 1.0f;
         };
