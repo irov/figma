@@ -48,17 +48,17 @@ static NSString * missingFontsInformativeText(NSArray<NSString *> * _fonts, NSAr
     self.view.document = nullptr;
     self.view.player = nullptr;
 
-    Figma::PlayerInterface * player = self.player;
+    figma_player_t * player = self.player;
     self.player = nullptr;
-    destroyFigmaInterface(player);
+    destroyFigmaObject(player);
 
-    Figma::DocumentInterface * document = self.document;
+    figma_document_t * document = self.document;
     self.document = nullptr;
-    destroyFigmaInterface(document);
+    destroyFigmaObject(document);
 
-    Figma::RuntimeInterface * runtime = self.runtime;
+    figma_runtime_t * runtime = self.runtime;
     self.runtime = nullptr;
-    destroyFigmaInterface(runtime);
+    destroyFigmaObject(runtime);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -98,7 +98,7 @@ static NSString * missingFontsInformativeText(NSArray<NSString *> * _fonts, NSAr
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (void)showLoadErrorForPath:(NSString *)_path result:(Figma::EResult)_result
+- (void)showLoadErrorForPath:(NSString *)_path result:(figma_result_t)_result
 {
     NSAlert * alert = [[NSAlert alloc] init];
     alert.alertStyle = NSAlertStyleCritical;
@@ -185,11 +185,11 @@ static NSString * missingFontsInformativeText(NSArray<NSString *> * _fonts, NSAr
     const std::string figPath = resolveFigPath(_figPath.fileSystemRepresentation);
     const char * sidecarPath = _sidecarPath.length > 0 ? _sidecarPath.fileSystemRepresentation : nullptr;
 
-    Figma::DocumentInterface * document = nullptr;
-    Figma::PlayerInterface * player = nullptr;
-    Figma::PlayerDesc playerDesc;
-    Figma::EResult result = loadViewerDocument(self.runtime, figPath, sidecarPath, &document, &player, &playerDesc);
-    if(result != Figma::EResult::Ok)
+    figma_document_t * document = nullptr;
+    figma_player_t * player = nullptr;
+    figma_player_desc_t playerDesc;
+    figma_result_t result = loadViewerDocument(self.runtime, figPath, sidecarPath, &document, &player, &playerDesc);
+    if(result != FIGMA_RESULT_OK)
     {
         std::fprintf(stderr, "load viewer document failed: %s\n", resultToString(result));
         if(_showError == YES)
@@ -199,19 +199,19 @@ static NSString * missingFontsInformativeText(NSArray<NSString *> * _fonts, NSAr
         return NO;
     }
 
-    Figma::PlayerInterface * oldPlayer = self.player;
-    Figma::DocumentInterface * oldDocument = self.document;
+    figma_player_t * oldPlayer = self.player;
+    figma_document_t * oldDocument = self.document;
 
     self.document = document;
     self.player = player;
-    self.window.title = [NSString stringWithFormat:@"Figma Viewer - %@", nsString(privateDocument(document)->getFileName())];
+    self.window.title = [NSString stringWithFormat:@"Figma Viewer - %@", documentFileName(document)];
     [self.view configureWithDocument:document
                                player:player
                         viewportWidth:static_cast<CGFloat>(playerDesc.viewport.width)
                        viewportHeight:static_cast<CGFloat>(playerDesc.viewport.height)];
 
-    destroyFigmaInterface(oldPlayer);
-    destroyFigmaInterface(oldDocument);
+    destroyFigmaObject(oldPlayer);
+    destroyFigmaObject(oldDocument);
 
     [self.window makeFirstResponder:self.view];
     self.lastTickTime = [NSDate date];
@@ -234,7 +234,7 @@ static NSString * missingFontsInformativeText(NSArray<NSString *> * _fonts, NSAr
     panel.treatsFilePackagesAsDirectories = NO;
     if(self.document != nullptr)
     {
-        NSString * path = nsString(privateDocument(self.document)->getPath());
+        NSString * path = documentPath(self.document);
         panel.directoryURL = [NSURL fileURLWithPath:path.stringByDeletingLastPathComponent isDirectory:YES];
     }
 

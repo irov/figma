@@ -10,39 +10,38 @@ int main(int argc, char ** argv)
 {
     @autoreleasepool
     {
-        Figma::RuntimeInterface * runtimePtr = nullptr;
-        Figma::EResult result = Figma::createRuntime(Figma::FIGMA_SDK_VERSION, {}, &runtimePtr);
-        if(result != Figma::EResult::Ok)
+        figma_runtime_t * runtimePtr = nullptr;
+        figma_runtime_desc_t runtimeDesc = {};
+        figma_result_t result = figma_runtime_create(
+            FIGMA_SDK_VERSION, &runtimeDesc, &runtimePtr);
+        if(result != FIGMA_RESULT_OK)
         {
             std::fprintf(stderr, "createRuntime failed: %s\n", resultToString(result));
             return 1;
         }
-        FigmaInterfaceOwner<Figma::RuntimeInterface> runtime(runtimePtr);
-
-        Figma::DocumentInterface * documentPtr = nullptr;
-        Figma::PlayerInterface * playerPtr = nullptr;
-        Figma::PlayerDesc playerDesc = makePlayerDesc(nullptr);
+        figma_document_t * documentPtr = nullptr;
+        figma_player_t * playerPtr = nullptr;
+        figma_player_desc_t playerDesc = makePlayerDesc(nullptr);
         if(argc > 1)
         {
             const std::string figPath = resolveFigPath(argv[1]);
             const char * sidecarPath = argc > 2 ? argv[2] : nullptr;
-            result = loadViewerDocument(runtime.get(), figPath, sidecarPath, &documentPtr, &playerPtr, &playerDesc);
-            if(result != Figma::EResult::Ok)
+            result = loadViewerDocument(runtimePtr, figPath, sidecarPath, &documentPtr, &playerPtr, &playerDesc);
+            if(result != FIGMA_RESULT_OK)
             {
                 std::fprintf(stderr, "load viewer document failed: %s\n", resultToString(result));
+                figma_runtime_destroy(runtimePtr);
                 return 1;
             }
         }
-        FigmaInterfaceOwner<Figma::DocumentInterface> document(documentPtr);
-        FigmaInterfaceOwner<Figma::PlayerInterface> player(playerPtr);
 
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
         FigmaAppDelegate * delegate = [[FigmaAppDelegate alloc] init];
-        delegate.runtime = runtime.release();
-        delegate.document = document.release();
-        delegate.player = player.release();
+        delegate.runtime = runtimePtr;
+        delegate.document = documentPtr;
+        delegate.player = playerPtr;
         [NSApp setDelegate:delegate];
         [delegate installMainMenu];
 
@@ -53,7 +52,7 @@ int main(int argc, char ** argv)
                                                         styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable)
                                                           backing:NSBackingStoreBuffered
                                                             defer:NO];
-        window.title = delegate.document != nullptr ? [NSString stringWithFormat:@"Figma Viewer - %@", nsString(privateDocument(delegate.document)->getFileName())] : @"Figma Viewer";
+        window.title = delegate.document != nullptr ? [NSString stringWithFormat:@"Figma Viewer - %@", documentFileName(delegate.document)] : @"Figma Viewer";
 
         FigmaViewerView * view = [[FigmaViewerView alloc] initWithFrame:windowRect];
         view.showHotspots = NO;

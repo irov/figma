@@ -27,8 +27,10 @@
     NSSlider * m_speedSlider;
     NSTextField * m_speedLabel;
     std::vector<PlaybackInputRecord> m_playbackInputs;
+    ViewerRenderCommandVector m_renderCommands;
     std::vector<std::uint8_t> m_commandVisibility;
     std::vector<std::uint8_t> m_commandExpanded;
+    figma_asset_desc_t m_assetScratch;
     NSTimeInterval m_playbackElapsed;
     NSSize m_cameraPan;
     NSPoint m_lastPanPoint;
@@ -145,7 +147,7 @@
 //////////////////////////////////////////////////////////////////////////
 - (NSArray<NSString *> *)collectMissingFontDescriptions
 {
-    const Figma::RenderCommandVector * commands = [self renderCommands];
+    const ViewerRenderCommandVector * commands = [self renderCommands];
     if(commands == nullptr)
     {
         return @[];
@@ -176,7 +178,7 @@
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (void)configureWithDocument:(Figma::DocumentInterface *)_newDocument player:(Figma::PlayerInterface *)_newPlayer viewportWidth:(CGFloat)_newViewportWidth viewportHeight:(CGFloat)_newViewportHeight
+- (void)configureWithDocument:(figma_document_t *)_newDocument player:(figma_player_t *)_newPlayer viewportWidth:(CGFloat)_newViewportWidth viewportHeight:(CGFloat)_newViewportHeight
 {
     self.document = _newDocument;
     self.player = _newPlayer;
@@ -186,6 +188,7 @@
     self.playbackSpeed = playbackSpeedAtIndex(defaultPlaybackSpeedIndex());
 
     m_playbackInputs.clear();
+    m_renderCommands.clear();
     m_commandVisibility.clear();
     m_commandExpanded.clear();
     m_playbackElapsed = 0.0;
@@ -206,6 +209,7 @@
         m_speedSlider.integerValue = defaultPlaybackSpeedIndex();
     }
     [self updatePlaybackControlTitles];
+    [self refreshRenderCommands];
     [self updateCopyPropertiesButtonState];
     [self notifyPlaybackControlsChanged];
     [self setNeedsLayout:YES];
@@ -259,11 +263,11 @@
         return;
     }
 
-    self.player->restart();
+    (void)figma_player_restart(self.player);
     const float advanceTime = prototypeIntroAdvanceTime(self.document);
     if(advanceTime > 0.0f)
     {
-        self.player->update(advanceTime);
+        (void)figma_player_update(self.player, advanceTime);
     }
 
     m_playbackElapsed = 0.0;
@@ -279,7 +283,7 @@
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (void)recordPlaybackPointerEvent:(const Figma::PointerEvent &)_event
+- (void)recordPlaybackPointerEvent:(const figma_pointer_event_t &)_event
 {
     if(m_replayingPlayback == YES)
     {
@@ -309,11 +313,11 @@
     const NSTimeInterval targetElapsed = std::max<NSTimeInterval>(0.0, _targetElapsed);
 
     m_replayingPlayback = YES;
-    self.player->restart();
+    (void)figma_player_restart(self.player);
     const float advanceTime = prototypeIntroAdvanceTime(self.document);
     if(advanceTime > 0.0f)
     {
-        self.player->update(advanceTime);
+        (void)figma_player_update(self.player, advanceTime);
     }
 
     NSTimeInterval replayElapsed = 0.0;
@@ -327,18 +331,21 @@
         const NSTimeInterval eventDelta = std::max<NSTimeInterval>(0.0, record.time - replayElapsed);
         if(eventDelta > 0.0)
         {
-            self.player->update(static_cast<float>(eventDelta));
+            (void)figma_player_update(
+                self.player, static_cast<float>(eventDelta));
             replayElapsed += eventDelta;
         }
 
-        self.player->inputPointer(record.event);
-        self.player->update(0.0f);
+        (void)figma_player_input_pointer(
+            self.player, &record.event, nullptr);
+        (void)figma_player_update(self.player, 0.0f);
     }
 
     const NSTimeInterval tailDelta = std::max<NSTimeInterval>(0.0, targetElapsed - replayElapsed);
     if(tailDelta > 0.0)
     {
-        self.player->update(static_cast<float>(tailDelta));
+        (void)figma_player_update(
+            self.player, static_cast<float>(tailDelta));
     }
 
     m_playbackElapsed = targetElapsed;
@@ -357,12 +364,12 @@
     const NSTimeInterval dt = std::max<NSTimeInterval>(0.0, _dt);
     if(dt <= 0.0)
     {
-        self.player->update(0.0f);
+        (void)figma_player_update(self.player, 0.0f);
         [self setNeedsDisplay:YES];
         return;
     }
 
-    self.player->update(static_cast<float>(dt));
+    (void)figma_player_update(self.player, static_cast<float>(dt));
     m_playbackElapsed += dt;
     [self setNeedsDisplay:YES];
 }
@@ -432,7 +439,7 @@
     m_metalRenderer->render(m_metalLayer,
                             self.document,
                             [self textRenderer],
-                            self.player->getRenderList(),
+                            m_renderCommands,
                             m_commandVisibility,
                             self.viewportWidth,
                             self.viewportHeight,
@@ -490,11 +497,11 @@
 
     if(self.player != nullptr)
     {
-        Figma::KeyEvent key;
-        key.type = Figma::EKeyEventType::Down;
-        key.keyCode = static_cast<std::uint32_t>(event.keyCode);
+        figma_key_event_t key = {};
+        key.type = FIGMA_KEY_EVENT_DOWN;
+        key.key_code = static_cast<std::uint32_t>(event.keyCode);
         key.modifiers = inputModifiersFromEvent(event);
-        self.player->inputKey(key);
+        (void)figma_player_input_key(self.player, &key, nullptr);
     }
 }
 
@@ -510,11 +517,11 @@
 
     if(self.player != nullptr)
     {
-        Figma::KeyEvent key;
-        key.type = Figma::EKeyEventType::Up;
-        key.keyCode = static_cast<std::uint32_t>(event.keyCode);
+        figma_key_event_t key = {};
+        key.type = FIGMA_KEY_EVENT_UP;
+        key.key_code = static_cast<std::uint32_t>(event.keyCode);
         key.modifiers = inputModifiersFromEvent(event);
-        self.player->inputKey(key);
+        (void)figma_player_input_key(self.player, &key, nullptr);
     }
 }
 
@@ -604,8 +611,11 @@
 //////////////////////////////////////////////////////////////////////////
 - (CGFloat)diagnosticsWidth
 {
-    const Figma::DiagnosticsInterface * diagnostics = self.player != nullptr ? self.player->getDiagnostics() : nullptr;
-    if(diagnostics == nullptr || diagnostics->getItems().empty() == true)
+    const figma_diagnostics_t * diagnostics =
+        self.player != nullptr
+        ? figma_player_get_diagnostics(self.player)
+        : nullptr;
+    if(diagnostics == nullptr || figma_diagnostics_get_count(diagnostics) == 0u)
     {
         return 0.0;
     }
@@ -632,21 +642,32 @@
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (const Figma::RenderCommandVector *)renderCommands
+- (const ViewerRenderCommandVector *)renderCommands
+{
+    return self.player != nullptr ? &m_renderCommands : nullptr;
+}
+
+//////////////////////////////////////////////////////////////////////////
+- (void)refreshRenderCommands
 {
     if(self.player == nullptr)
     {
-        return nullptr;
+        m_renderCommands.clear();
+        return;
     }
 
-    const Figma::RenderListInterface * renderList = self.player->getRenderList();
-    return renderList != nullptr ? &privateRenderCommands(renderList) : nullptr;
+    const figma_render_list_t * renderList =
+        figma_player_get_render_list(self.player);
+    if(copyViewerRenderCommands(renderList, &m_renderCommands) == false)
+    {
+        m_renderCommands.clear();
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////
 - (BOOL)hasSelectedCommand
 {
-    const Figma::RenderCommandVector * commands = [self renderCommands];
+    const ViewerRenderCommandVector * commands = [self renderCommands];
     return commands != nullptr && m_selectedCommandIndex >= 0 && static_cast<std::size_t>(m_selectedCommandIndex) < commands->size() ? YES : NO;
 }
 
@@ -666,7 +687,7 @@
 //////////////////////////////////////////////////////////////////////////
 - (void)syncCommandVisibility
 {
-    const Figma::RenderCommandVector * commands = [self renderCommands];
+    const ViewerRenderCommandVector * commands = [self renderCommands];
     const std::size_t commandCount = commands != nullptr ? commands->size() : 0;
     if(m_commandVisibility.size() != commandCount)
     {
@@ -718,8 +739,14 @@
         return 0.0;
     }
 
-    const Figma::DiagnosticsInterface * diagnostics = self.player != nullptr ? self.player->getDiagnostics() : nullptr;
-    return diagnostics != nullptr && diagnostics->getItems().empty() == false ? 106.0 : 0.0;
+    const figma_diagnostics_t * diagnostics =
+        self.player != nullptr
+        ? figma_player_get_diagnostics(self.player)
+        : nullptr;
+    return diagnostics != nullptr &&
+            figma_diagnostics_get_count(diagnostics) != 0u
+        ? 106.0
+        : 0.0;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -733,7 +760,7 @@
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (NSArray<NSString *> *)detailLinesForCommand:(const Figma::RenderCommand *)_command index:(std::size_t)_index
+- (NSArray<NSString *> *)detailLinesForCommand:(const ViewerRenderCommand *)_command index:(std::size_t)_index
 {
     NSMutableArray<NSString *> * lines = [NSMutableArray array];
     if(_command == nullptr)
@@ -741,9 +768,9 @@
         return lines;
     }
 
-    const Figma::RenderCommand & command = *_command;
-    [lines addObject:[NSString stringWithFormat:@"document.path: %@", self.document != nullptr ? nsString(privateDocument(self.document)->getPath()) : @""]];
-    [lines addObject:[NSString stringWithFormat:@"document.fileName: %@", self.document != nullptr ? nsString(privateDocument(self.document)->getFileName()) : @""]];
+    const ViewerRenderCommand & command = *_command;
+    [lines addObject:[NSString stringWithFormat:@"document.path: %@", documentPath(self.document)]];
+    [lines addObject:[NSString stringWithFormat:@"document.fileName: %@", documentFileName(self.document)]];
     [lines addObject:[NSString stringWithFormat:@"command.index: %zu", _index]];
     [lines addObject:[NSString stringWithFormat:@"command.type: %s", renderCommandTypeName(command.type)]];
     [lines addObject:[NSString stringWithFormat:@"command.id: %@", nsString(command.id)]];
@@ -772,13 +799,13 @@
     [lines addObject:[NSString stringWithFormat:@"text.lineHeight: %.4f", command.lineHeight]];
     [lines addObject:[NSString stringWithFormat:@"text.align: horizontal=%s vertical=%s", renderTextAlignHorizontalName(command.textAlignHorizontal), renderTextAlignVerticalName(command.textAlignVertical)]];
 
-    const Figma::AssetDesc * asset = command.assetId.empty() == false ? [self assetForId:command.assetId] : nullptr;
+    const figma_asset_desc_t * asset = command.assetId.empty() == false ? [self assetForId:command.assetId] : nullptr;
     if(asset != nullptr)
     {
         [lines addObject:[NSString stringWithFormat:@"asset.id: %@", nsString(asset->id)]];
         [lines addObject:[NSString stringWithFormat:@"asset.path: %@", nsString(asset->path)]];
         [lines addObject:[NSString stringWithFormat:@"asset.mime: %@", nsString(asset->mime)]];
-        [lines addObject:[NSString stringWithFormat:@"asset.size: %ux%u colorType=%u bytes=%zu", asset->width, asset->height, asset->colorType, asset->bytes.size()]];
+        [lines addObject:[NSString stringWithFormat:@"asset.size: %ux%u colorType=%u bytes=%zu", asset->width, asset->height, asset->color_type, asset->bytes.size]];
     }
     else if(command.assetId.empty() == false)
     {
@@ -789,7 +816,7 @@
     [lines addObject:[NSString stringWithFormat:@"textLines.count: %zu", textLineSize]];
     for(std::size_t lineIndex = 0; lineIndex != textLineSize; ++lineIndex)
     {
-        const Figma::RenderTextLineDesc & line = command.textLines[lineIndex];
+        const ViewerRenderTextLineDesc & line = command.textLines[lineIndex];
         [lines addObject:[NSString stringWithFormat:@"textLine[%zu]: x=%.3f y=%.3f width=%.3f lineHeight=%.3f lineAscent=%.3f text=%@",
                           lineIndex,
                           line.x,
@@ -804,7 +831,7 @@
     [lines addObject:[NSString stringWithFormat:@"vertices.count: %zu", vertexSize]];
     for(std::size_t vertexIndex = 0; vertexIndex != vertexSize; ++vertexIndex)
     {
-        const Figma::RenderVertex & vertex = command.vertices[vertexIndex];
+        const figma_render_vertex_t & vertex = command.vertices[vertexIndex];
         [lines addObject:[NSString stringWithFormat:@"vertex[%zu]: xy=(%.3f, %.3f) uv=(%.6f, %.6f) color=(%@)",
                           vertexIndex,
                           vertex.x,
@@ -838,7 +865,7 @@
 {
     [self syncCommandVisibility];
 
-    const Figma::RenderCommandVector * commands = [self renderCommands];
+    const ViewerRenderCommandVector * commands = [self renderCommands];
     if(commands == nullptr || _index >= commands->size())
     {
         return @"";
@@ -878,7 +905,7 @@
         return 0.0;
     }
 
-    const Figma::RenderCommandVector * commands = [self renderCommands];
+    const ViewerRenderCommandVector * commands = [self renderCommands];
     if(commands == nullptr || _index >= commands->size())
     {
         return 0.0;
@@ -897,7 +924,7 @@
 //////////////////////////////////////////////////////////////////////////
 - (CGFloat)commandListContentHeight
 {
-    const Figma::RenderCommandVector * commands = [self renderCommands];
+    const ViewerRenderCommandVector * commands = [self renderCommands];
     if(commands == nullptr)
     {
         return 0.0;
@@ -924,7 +951,7 @@
 //////////////////////////////////////////////////////////////////////////
 - (NSRect)commandRowRectAtIndex:(std::size_t)_index inListRect:(NSRect)_listRect
 {
-    const Figma::RenderCommandVector * commands = [self renderCommands];
+    const ViewerRenderCommandVector * commands = [self renderCommands];
     if(commands == nullptr || _index >= commands->size())
     {
         return NSZeroRect;
@@ -954,7 +981,7 @@
         return -1;
     }
 
-    const Figma::RenderCommandVector * commands = [self renderCommands];
+    const ViewerRenderCommandVector * commands = [self renderCommands];
     if(commands == nullptr)
     {
         return -1;
@@ -1062,7 +1089,7 @@
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (BOOL)windowPoint:(NSPoint)point toViewportPoint:(Figma::Vec2f *)viewportPoint
+- (BOOL)windowPoint:(NSPoint)point toViewportPoint:(figma_vec2f_t *)viewportPoint
 {
     const NSRect screen = [self screenRect];
     if(NSPointInRect(point, screen) == NO)
@@ -1115,21 +1142,22 @@
         return;
     }
 
-    Figma::Vec2f viewportPoint{};
+    figma_vec2f_t viewportPoint{};
     if([self windowPoint:point toViewportPoint:&viewportPoint] == NO)
     {
         return;
     }
 
-    Figma::PointerEvent pointer;
-    pointer.type = Figma::EPointerEventType::Down;
+    figma_pointer_event_t pointer = {};
+    pointer.type = FIGMA_POINTER_EVENT_DOWN;
+    pointer.pointer_id = 1u;
     pointer.x = viewportPoint.x;
     pointer.y = viewportPoint.y;
     pointer.button = pointerButtonFromEvent(event);
     pointer.modifiers = inputModifiersFromEvent(event);
     [self recordPlaybackPointerEvent:pointer];
-    self.player->inputPointer(pointer);
-    self.player->update(0.0f);
+    (void)figma_player_input_pointer(self.player, &pointer, nullptr);
+    (void)figma_player_update(self.player, 0.0f);
     [self setNeedsDisplay:YES];
 }
 
@@ -1163,21 +1191,22 @@
     }
 
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-    Figma::Vec2f viewportPoint{};
+    figma_vec2f_t viewportPoint{};
     if([self windowPoint:point toViewportPoint:&viewportPoint] == NO)
     {
         return;
     }
 
-    Figma::PointerEvent pointer;
-    pointer.type = Figma::EPointerEventType::Up;
+    figma_pointer_event_t pointer = {};
+    pointer.type = FIGMA_POINTER_EVENT_UP;
+    pointer.pointer_id = 1u;
     pointer.x = viewportPoint.x;
     pointer.y = viewportPoint.y;
     pointer.button = pointerButtonFromEvent(event);
     pointer.modifiers = inputModifiersFromEvent(event);
     [self recordPlaybackPointerEvent:pointer];
-    self.player->inputPointer(pointer);
-    self.player->update(0.0f);
+    (void)figma_player_input_pointer(self.player, &pointer, nullptr);
+    (void)figma_player_update(self.player, 0.0f);
     [self setNeedsDisplay:YES];
 }
 
@@ -1216,42 +1245,48 @@
     }
 
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-    Figma::Vec2f viewportPoint{};
+    figma_vec2f_t viewportPoint{};
     if([self windowPoint:point toViewportPoint:&viewportPoint] == NO)
     {
         return;
     }
 
-    Figma::PointerEvent pointer;
-    pointer.type = Figma::EPointerEventType::Move;
+    figma_pointer_event_t pointer = {};
+    pointer.type = FIGMA_POINTER_EVENT_MOVE;
+    pointer.pointer_id = 1u;
     pointer.x = viewportPoint.x;
     pointer.y = viewportPoint.y;
     pointer.modifiers = inputModifiersFromEvent(event);
-    self.player->inputPointer(pointer);
-    self.player->update(0.0f);
+    (void)figma_player_input_pointer(self.player, &pointer, nullptr);
+    (void)figma_player_update(self.player, 0.0f);
     [self setNeedsDisplay:YES];
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (const Figma::AssetDesc *)assetForId:(const Figma::FigmaString &)_assetId
+- (const figma_asset_desc_t *)assetForId:(const std::string &)_assetId
 {
     if(self.document == nullptr)
     {
         return nullptr;
     }
 
-    return self.document->findAsset(std::string_view(_assetId.data(), _assetId.size()));
+    const figma_string_view_t assetId = {
+        _assetId.data(), _assetId.size()};
+    return figma_document_find_asset(
+               self.document, assetId, &m_assetScratch) != FIGMA_FALSE
+        ? &m_assetScratch
+        : nullptr;
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (NSImage *)imageForAsset:(const Figma::AssetDesc *)asset
+- (NSImage *)imageForAsset:(const figma_asset_desc_t *)asset
 {
-    if(asset == nullptr || asset->bytes.empty() == true)
+    if(asset == nullptr || asset->bytes.data == nullptr || asset->bytes.size == 0u)
     {
         return nil;
     }
 
-    NSData * data = [NSData dataWithBytes:asset->bytes.data() length:asset->bytes.size()];
+    NSData * data = [NSData dataWithBytes:asset->bytes.data length:asset->bytes.size];
     return [[NSImage alloc] initWithData:data];
 }
 
@@ -1272,15 +1307,26 @@
     };
 
     CGFloat row = rect.origin.y;
-    const Figma::DiagnosticsInterface * diagnostics = self.player != nullptr ? self.player->getDiagnostics() : nullptr;
+    const figma_diagnostics_t * diagnostics =
+        self.player != nullptr
+        ? figma_player_get_diagnostics(self.player)
+        : nullptr;
     if(diagnostics == nullptr)
     {
         return;
     }
 
-    for(const Figma::Diagnostic & diagnostic : diagnostics->getItems())
+    const uint32_t diagnosticCount = figma_diagnostics_get_count(diagnostics);
+    for(uint32_t index = 0u; index != diagnosticCount; ++index)
     {
-        NSString * line = [NSString stringWithFormat:@"%s: %@", diagnostic.code.c_str(), nsString(diagnostic.message)];
+        figma_diagnostic_t diagnostic = {};
+        if(figma_diagnostics_get(diagnostics, index, &diagnostic) !=
+            FIGMA_RESULT_OK)
+        {
+            continue;
+        }
+        NSString * line = [NSString stringWithFormat:@"%@: %@",
+            nsString(diagnostic.code), nsString(diagnostic.message)];
         [line drawInRect:NSMakeRect(rect.origin.x, row, rect.size.width, 16.0) withAttributes:attrs];
         row += 16.0;
         if(row > rect.origin.y + rect.size.height - 16.0)
@@ -1360,13 +1406,15 @@
         NSParagraphStyleAttributeName: truncateParagraph,
     };
 
-    const Figma::RenderCommandVector * commandsPtr = [self renderCommands];
+    const ViewerRenderCommandVector * commandsPtr = [self renderCommands];
     const std::size_t commandCount = commandsPtr != nullptr ? commandsPtr->size() : 0;
     NSString * title = [NSString stringWithFormat:@"Render List  %zu", commandCount];
     [title drawInRect:NSMakeRect(_rect.origin.x + 16.0, _rect.origin.y + 15.0, _rect.size.width - 132.0, 18.0) withAttributes:titleAttrs];
 
-    const Figma::DiagnosticsInterface * diagnostics = self.player->getDiagnostics();
-    const BOOL hasDiagnostics = diagnostics != nullptr && diagnostics->getItems().empty() == false;
+    const figma_diagnostics_t * diagnostics =
+        figma_player_get_diagnostics(self.player);
+    const BOOL hasDiagnostics = diagnostics != nullptr &&
+        figma_diagnostics_get_count(diagnostics) != 0u;
     const CGFloat diagnosticsHeight = [self inspectorDiagnosticsHeight];
     const NSRect listRect = [self inspectorListRectForInspectorRect:_rect];
 
@@ -1379,7 +1427,7 @@
         return;
     }
 
-    const Figma::RenderCommandVector & commands = *commandsPtr;
+    const ViewerRenderCommandVector & commands = *commandsPtr;
     CGFloat y = listRect.origin.y - m_commandListScroll;
     const std::size_t commandSize = commands.size();
     for(std::size_t index = 0; index != commandSize; ++index)
@@ -1396,7 +1444,7 @@
             break;
         }
 
-        const Figma::RenderCommand & command = commands[index];
+        const ViewerRenderCommand & command = commands[index];
         const BOOL visible = [self isCommandVisibleAtIndex:index];
         const BOOL expanded = [self isCommandExpandedAtIndex:index];
         const BOOL selected = m_selectedCommandIndex >= 0 && static_cast<std::size_t>(m_selectedCommandIndex) == index ? YES : NO;
@@ -1413,7 +1461,7 @@
         NSString * marker = expanded == YES ? @"-" : @"+";
         [marker drawInRect:NSMakeRect(baseRowRect.origin.x + 40.0, baseRowRect.origin.y + 5.0, 14.0, 14.0) withAttributes:markerAttrs];
 
-        const Figma::FigmaString & label = command.nodeId.empty() == false ? command.nodeId : command.id;
+        const std::string & label = command.nodeId.empty() == false ? command.nodeId : command.id;
         NSString * row = [NSString stringWithFormat:@"%03zu  %s  %@", index, renderCommandTypeName(command.type), nsString(label)];
         [row drawInRect:NSMakeRect(baseRowRect.origin.x + 60.0, baseRowRect.origin.y + 5.0, baseRowRect.size.width - 70.0, 14.0)
          withAttributes:visible == YES ? rowAttrs : hiddenRowAttrs];
@@ -1473,14 +1521,14 @@
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (void)drawWireframeCommand:(const Figma::RenderCommand &)_command
+- (void)drawWireframeCommand:(const ViewerRenderCommand &)_command
 {
-    if(_command.type == Figma::ERenderCommandType::ClipBegin || _command.type == Figma::ERenderCommandType::ClipEnd)
+    if(_command.type == FIGMA_RENDER_COMMAND_CLIP_BEGIN || _command.type == FIGMA_RENDER_COMMAND_CLIP_END)
     {
         return;
     }
 
-    if(_command.type == Figma::ERenderCommandType::DebugHotspot && self.showHotspots == NO)
+    if(_command.type == FIGMA_RENDER_COMMAND_DEBUG_HOTSPOT && self.showHotspots == NO)
     {
         return;
     }
@@ -1508,9 +1556,9 @@
                 continue;
             }
 
-            const Figma::RenderVertex & v0 = _command.vertices[i0];
-            const Figma::RenderVertex & v1 = _command.vertices[i1];
-            const Figma::RenderVertex & v2 = _command.vertices[i2];
+            const figma_render_vertex_t & v0 = _command.vertices[i0];
+            const figma_render_vertex_t & v1 = _command.vertices[i1];
+            const figma_render_vertex_t & v2 = _command.vertices[i2];
             CGContextMoveToPoint(context, static_cast<CGFloat>(v0.x), static_cast<CGFloat>(v0.y));
             CGContextAddLineToPoint(context, static_cast<CGFloat>(v1.x), static_cast<CGFloat>(v1.y));
             CGContextAddLineToPoint(context, static_cast<CGFloat>(v2.x), static_cast<CGFloat>(v2.y));
@@ -1529,7 +1577,7 @@
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (void)drawRenderCommand:(const Figma::RenderCommand &)_command
+- (void)drawRenderCommand:(const ViewerRenderCommand &)_command
 {
     const NSRect rect = NSMakeRect(_command.rect.x, _command.rect.y, _command.rect.w, _command.rect.h);
     CGContextRef context = [[NSGraphicsContext currentContext] CGContext];
@@ -1539,7 +1587,7 @@
     {
         switch(_command.type)
         {
-        case Figma::ERenderCommandType::Fill:
+        case FIGMA_RENDER_COMMAND_FILL:
         {
             if(_command.vertices.empty() == false)
             {
@@ -1553,7 +1601,7 @@
             CGContextFillPath(context);
             break;
         }
-        case Figma::ERenderCommandType::Stroke:
+        case FIGMA_RENDER_COMMAND_STROKE:
         {
             if(_command.vertices.empty() == false)
             {
@@ -1568,9 +1616,9 @@
             CGContextStrokePath(context);
             break;
         }
-        case Figma::ERenderCommandType::Image:
+        case FIGMA_RENDER_COMMAND_IMAGE:
         {
-            const Figma::AssetDesc * asset = [self assetForId:_command.assetId];
+            const figma_asset_desc_t * asset = [self assetForId:_command.assetId];
             NSImage * image = [self imageForAsset:asset];
             if(image != nil)
             {
@@ -1578,12 +1626,12 @@
             }
             break;
         }
-        case Figma::ERenderCommandType::Text:
+        case FIGMA_RENDER_COMMAND_TEXT:
         {
             [self textRenderer]->drawText(_command, rect);
             break;
         }
-        case Figma::ERenderCommandType::DebugHotspot:
+        case FIGMA_RENDER_COMMAND_DEBUG_HOTSPOT:
         {
             if(self.showHotspots == YES)
             {
@@ -1601,11 +1649,11 @@
             }
             break;
         }
-        case Figma::ERenderCommandType::Mesh:
+        case FIGMA_RENDER_COMMAND_MESH:
             drawMeshCommand(_command);
             break;
-        case Figma::ERenderCommandType::ClipBegin:
-        case Figma::ERenderCommandType::ClipEnd:
+        case FIGMA_RENDER_COMMAND_CLIP_BEGIN:
+        case FIGMA_RENDER_COMMAND_CLIP_END:
             break;
         }
     }
@@ -1618,7 +1666,7 @@
 }
 
 //////////////////////////////////////////////////////////////////////////
-- (void)drawRenderLayerCommands:(const Figma::RenderCommandVector &)_commands from:(std::size_t)_begin to:(std::size_t)_end opacity:(CGFloat)_opacity
+- (void)drawRenderLayerCommands:(const ViewerRenderCommandVector &)_commands from:(std::size_t)_begin to:(std::size_t)_end opacity:(CGFloat)_opacity
 {
     if(_begin >= _end || _opacity <= 0.0)
     {
@@ -1673,18 +1721,18 @@
 //////////////////////////////////////////////////////////////////////////
 - (void)drawRenderList
 {
-    const Figma::RenderCommandVector * commandsPtr = [self renderCommands];
+    const ViewerRenderCommandVector * commandsPtr = [self renderCommands];
     if(commandsPtr == nullptr)
     {
         return;
     }
 
-    const Figma::RenderCommandVector & commands = *commandsPtr;
+    const ViewerRenderCommandVector & commands = *commandsPtr;
     [self syncCommandVisibility];
     const std::size_t commandSize = commands.size();
     for(std::size_t index = 0; index != commandSize;)
     {
-        const Figma::RenderCommand & command = commands[index];
+        const ViewerRenderCommand & command = commands[index];
         if(command.renderLayerId == 0)
         {
             if([self isCommandVisibleAtIndex:index] == YES)
@@ -1720,13 +1768,13 @@
         return;
     }
 
-    const Figma::RenderCommandVector * commandsPtr = [self renderCommands];
+    const ViewerRenderCommandVector * commandsPtr = [self renderCommands];
     if(commandsPtr == nullptr)
     {
         return;
     }
 
-    const Figma::RenderCommandVector & commands = *commandsPtr;
+    const ViewerRenderCommandVector & commands = *commandsPtr;
     [self syncCommandVisibility];
     const std::size_t commandSize = commands.size();
     for(std::size_t index = 0; index != commandSize; ++index)
@@ -1736,8 +1784,8 @@
             continue;
         }
 
-        const Figma::RenderCommand & command = commands[index];
-        if(m_wireframeMode == EViewerWireframeMode::Normal && command.type != Figma::ERenderCommandType::DebugHotspot)
+        const ViewerRenderCommand & command = commands[index];
+        if(m_wireframeMode == EViewerWireframeMode::Normal && command.type != FIGMA_RENDER_COMMAND_DEBUG_HOTSPOT)
         {
             continue;
         }
@@ -1763,6 +1811,7 @@
         return;
     }
 
+    [self refreshRenderCommands];
     [self drawScreenFrame];
     if(m_wireframeMode == EViewerWireframeMode::Wireframe)
     {

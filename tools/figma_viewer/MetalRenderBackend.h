@@ -2,9 +2,6 @@
 
 #include "FreeTypeTextRenderer.h"
 
-#include "Figma/Figma.h"
-#include "../../sdk/src/RenderList.h"
-
 #import <AppKit/AppKit.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
@@ -47,9 +44,9 @@ public:
     bool isValid() const;
     void clearTextureCache();
     void render(CAMetalLayer * _layer,
-                Figma::DocumentInterface * _document,
+                figma_document_t * _document,
                 FreeTypeTextRenderer * _textRenderer,
-                const Figma::RenderListInterface * const _renderList,
+                const ViewerRenderCommandVector & _commands,
                 const std::vector<std::uint8_t> & _visibility,
                 CGFloat _viewportWidth,
                 CGFloat _viewportHeight,
@@ -77,10 +74,10 @@ protected:
     id<MTLTexture> textureFromImage(NSImage * _image, NSString * _cacheKey);
     id<MTLTexture> textureFromImagePixels(std::vector<std::uint8_t> _pixels, NSUInteger _width, NSUInteger _height, NSString * _cacheKey);
     id<MTLTexture> textureFromRgbaPixels(const std::vector<std::uint8_t> & _pixels, NSUInteger _width, NSUInteger _height);
-    id<MTLTexture> textureForCommand(Figma::DocumentInterface * _document, const Figma::RenderCommand & _command);
-    id<MTLTexture> textureForText(FreeTypeTextRenderer * _textRenderer, const Figma::RenderCommand & _command, CGFloat _pixelScale);
-    static void appendQuadVertices(std::vector<MetalVertexDesc> * const _vertices, const Figma::RenderCommand & _command);
-    bool buildCommandGeometry(const Figma::RenderCommand & _command, std::vector<MetalVertexDesc> * const _vertices, std::vector<std::uint16_t> * const _indices);
+    id<MTLTexture> textureForCommand(figma_document_t * _document, const ViewerRenderCommand & _command);
+    id<MTLTexture> textureForText(FreeTypeTextRenderer * _textRenderer, const ViewerRenderCommand & _command, CGFloat _pixelScale);
+    static void appendQuadVertices(std::vector<MetalVertexDesc> * const _vertices, const ViewerRenderCommand & _command);
+    bool buildCommandGeometry(const ViewerRenderCommand & _command, std::vector<MetalVertexDesc> * const _vertices, std::vector<std::uint16_t> * const _indices);
     void drawVertices(id<MTLCommandBuffer> _commandBuffer,
                       id<MTLTexture> _target,
                       id<MTLTexture> _backdrop,
@@ -88,17 +85,17 @@ protected:
                       const std::vector<MetalVertexDesc> & _vertices,
                       const std::vector<std::uint16_t> & _indices,
                       const MetalUniformDesc & _uniforms);
-    MetalUniformDesc makeUniforms(const Figma::RenderCommand & _command,
+    MetalUniformDesc makeUniforms(const ViewerRenderCommand & _command,
                                   bool _hasTexture,
                                   CGFloat _viewportWidth,
                                   CGFloat _viewportHeight,
                                   NSUInteger _targetWidth,
                                   NSUInteger _targetHeight) const;
-    bool shouldSkipCommand(const Figma::RenderCommand & _command) const;
+    bool shouldSkipCommand(const ViewerRenderCommand & _command) const;
     void drawCommand(id<MTLCommandBuffer> _commandBuffer,
-                     Figma::DocumentInterface * _document,
+                     figma_document_t * _document,
                      FreeTypeTextRenderer * _textRenderer,
-                     const Figma::RenderCommand & _command,
+                     const ViewerRenderCommand & _command,
                      id<MTLTexture> _target,
                      id<MTLTexture> _backdrop,
                      CGFloat _viewportWidth,
@@ -115,9 +112,9 @@ protected:
                           NSUInteger _targetWidth,
                           NSUInteger _targetHeight);
     void renderCommandRange(id<MTLCommandBuffer> _commandBuffer,
-                            Figma::DocumentInterface * _document,
+                            figma_document_t * _document,
                             FreeTypeTextRenderer * _textRenderer,
-                            const Figma::RenderCommandVector & _commands,
+                            const ViewerRenderCommandVector & _commands,
                             std::size_t _begin,
                             std::size_t _end,
                             const std::vector<std::uint8_t> & _visibility,

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(figma LANGUAGES C CXX)
+project(figma LANGUAGES C)
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   set(FIGMA_STANDALONE ON)
@@ -11,7 +11,25 @@ endif()
 option(FIGMA_BUILD_BUNDLED_DEPENDENCIES "Build bundled SDK dependencies" ${FIGMA_STANDALONE})
 option(FIGMA_VIEWER "Build native viewer" ${FIGMA_STANDALONE})
 option(FIGMA_TOOLS "Build developer tools" ${FIGMA_STANDALONE})
+option(FIGMA_TESTS "Build SDK tests" ${FIGMA_STANDALONE})
 option(FIGMA_SDK_WARNINGS "Enable SDK compiler warnings" ON)
+option(FIGMA_SANITIZERS "Enable ASan and UBSan for first-party targets" OFF)
+
+if(FIGMA_SANITIZERS)
+  if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+    set(FIGMA_SANITIZER_COMPILE_OPTIONS
+      -fsanitize=address,undefined
+      -fno-omit-frame-pointer
+    )
+    set(FIGMA_SANITIZER_LINK_OPTIONS
+      -fsanitize=address,undefined
+    )
+  else()
+    message(FATAL_ERROR
+      "FIGMA_SANITIZERS requires a Clang- or GCC-compatible toolchain"
+    )
+  endif()
+endif()
 
 if(NOT DEFINED FIGMA_SDK_LIBRARY_TYPE)
   set(FIGMA_SDK_LIBRARY_TYPE STATIC)
@@ -171,6 +189,12 @@ if(FIGMA_VIEWER AND APPLE)
 endif()
 
 add_subdirectory(sdk)
+
+if(FIGMA_TESTS)
+  enable_language(CXX)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
 
 if(FIGMA_VIEWER)
   add_subdirectory(tools/figma_viewer)

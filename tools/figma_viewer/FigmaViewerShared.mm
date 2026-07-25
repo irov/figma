@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -11,42 +12,167 @@
 #include <vector>
 
 //////////////////////////////////////////////////////////////////////////
-const Figma::RenderCommandVector & privateRenderCommands(const Figma::RenderListInterface * const _renderList)
+static std::string viewerString(figma_string_view_t value)
 {
-    const Figma::RenderList & renderList = static_cast<const Figma::RenderList &>(*_renderList);
-    return renderList.getCommands();
+    return value.data != nullptr
+        ? std::string(value.data, value.size)
+        : std::string();
 }
 
 //////////////////////////////////////////////////////////////////////////
-const Figma::Document * privateDocument(const Figma::DocumentInterface * _document)
+bool copyViewerRenderCommands(
+    const figma_render_list_t * renderList,
+    ViewerRenderCommandVector * commands)
 {
-    return static_cast<const Figma::Document *>(_document);
+    if(renderList == nullptr || commands == nullptr)
+    {
+        return false;
+    }
+
+    const uint32_t count = figma_render_list_get_batch_count(renderList);
+    ViewerRenderCommandVector copied;
+    copied.reserve(count);
+    for(uint32_t index = 0u; index != count; ++index)
+    {
+        figma_inspection_render_command_desc_t source = {};
+        if(figma_inspection_get_render_command(renderList, index, &source) !=
+            FIGMA_RESULT_OK)
+        {
+            return false;
+        }
+
+        ViewerRenderCommand command;
+        command.type = source.type;
+        command.id = viewerString(source.id);
+        command.nodeId = viewerString(source.node_id);
+        command.assetId = viewerString(source.asset_id);
+        command.text = viewerString(source.text);
+        command.fontFamily = viewerString(source.font_family);
+        command.fontStyle = viewerString(source.font_style);
+        command.fontPostscriptName =
+            viewerString(source.font_postscript_name);
+        command.rect = source.rect;
+        command.color = source.color;
+        command.shape = source.shape;
+        command.textAlignHorizontal = source.text_align_horizontal;
+        command.textAlignVertical = source.text_align_vertical;
+        command.blendMode = source.blend_mode;
+        command.imageScaleMode = source.image_scale_mode;
+        command.cornerRadius = source.corner_radius;
+        command.fontSize = source.font_size;
+        command.lineHeight = source.line_height;
+        command.fontWeight = source.font_weight;
+        command.strokeWidth = source.stroke_width;
+        command.opacity = source.opacity;
+        command.renderLayerId = source.render_layer_id;
+        command.renderLayerOpacity = source.render_layer_opacity;
+        command.arcStartingAngle = source.arc_starting_angle;
+        command.arcEndingAngle = source.arc_ending_angle;
+        command.arcInnerRadius = source.arc_inner_radius;
+        std::memcpy(
+            command.imageTransform,
+            source.image_transform,
+            sizeof(command.imageTransform));
+        std::memcpy(
+            command.filterColorAdjust,
+            source.filter_color_adjust,
+            sizeof(command.filterColorAdjust));
+        std::memcpy(
+            command.paintFilter,
+            source.paint_filter,
+            sizeof(command.paintFilter));
+        command.originalImageWidth = source.original_image_width;
+        command.originalImageHeight = source.original_image_height;
+        command.hasArcDataValue = source.has_arc_data != FIGMA_FALSE;
+        command.hasImageTransformValue =
+            source.has_image_transform != FIGMA_FALSE;
+        command.hasFilterColorAdjustValue =
+            source.has_filter_color_adjust != FIGMA_FALSE;
+        command.hasPaintFilterValue =
+            source.has_paint_filter != FIGMA_FALSE;
+        if(source.vertex_count != 0u)
+        {
+            command.vertices.assign(
+                source.vertices, source.vertices + source.vertex_count);
+        }
+        if(source.index_count != 0u)
+        {
+            command.indices.assign(
+                source.indices, source.indices + source.index_count);
+        }
+        command.textLines.reserve(source.text_line_count);
+        for(uint32_t lineIndex = 0u;
+            lineIndex != source.text_line_count;
+            ++lineIndex)
+        {
+            figma_render_generated_text_line_desc_t sourceLine = {};
+            if(figma_render_list_get_generated_texture_text_line(
+                   renderList, index, lineIndex, &sourceLine) !=
+                FIGMA_RESULT_OK)
+            {
+                return false;
+            }
+            ViewerRenderTextLineDesc line;
+            line.text = viewerString(sourceLine.text);
+            line.x = sourceLine.x;
+            line.y = sourceLine.y;
+            line.width = sourceLine.width;
+            line.lineHeight = sourceLine.line_height;
+            line.lineAscent = sourceLine.line_ascent;
+            command.textLines.emplace_back(std::move(line));
+        }
+        copied.emplace_back(std::move(command));
+    }
+
+    *commands = std::move(copied);
+    return true;
 }
 
 //////////////////////////////////////////////////////////////////////////
-const char * resultToString(Figma::EResult _result)
+void destroyFigmaObject(figma_player_t *& player)
+{
+    figma_player_destroy(player);
+    player = nullptr;
+}
+
+//////////////////////////////////////////////////////////////////////////
+void destroyFigmaObject(figma_document_t *& document)
+{
+    figma_document_destroy(document);
+    document = nullptr;
+}
+
+//////////////////////////////////////////////////////////////////////////
+void destroyFigmaObject(figma_runtime_t *& runtime)
+{
+    figma_runtime_destroy(runtime);
+    runtime = nullptr;
+}
+
+//////////////////////////////////////////////////////////////////////////
+const char * resultToString(figma_result_t _result)
 {
     switch(_result)
     {
-    case Figma::EResult::Ok:
+    case FIGMA_RESULT_OK:
         return "Ok";
-    case Figma::EResult::InvalidArgument:
+    case FIGMA_RESULT_INVALID_ARGUMENT:
         return "InvalidArgument";
-    case Figma::EResult::OutOfMemory:
+    case FIGMA_RESULT_OUT_OF_MEMORY:
         return "OutOfMemory";
-    case Figma::EResult::IoFailed:
+    case FIGMA_RESULT_IO_FAILED:
         return "IoFailed";
-    case Figma::EResult::ParseFailed:
+    case FIGMA_RESULT_PARSE_FAILED:
         return "ParseFailed";
-    case Figma::EResult::UnsupportedFormat:
+    case FIGMA_RESULT_UNSUPPORTED_FORMAT:
         return "UnsupportedFormat";
-    case Figma::EResult::MissingEntry:
+    case FIGMA_RESULT_MISSING_ENTRY:
         return "MissingEntry";
-    case Figma::EResult::NotFound:
+    case FIGMA_RESULT_NOT_FOUND:
         return "NotFound";
-    case Figma::EResult::InvalidState:
+    case FIGMA_RESULT_INVALID_STATE:
         return "InvalidState";
-    case Figma::EResult::VersionMismatch:
+    case FIGMA_RESULT_VERSION_MISMATCH:
         return "VersionMismatch";
     }
 
@@ -54,7 +180,7 @@ const char * resultToString(Figma::EResult _result)
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSColor * colorFromCommand(const Figma::RenderCommand & _command, CGFloat _alpha)
+NSColor * colorFromCommand(const ViewerRenderCommand & _command, CGFloat _alpha)
 {
     return [NSColor colorWithSRGBRed:_command.color.r
                                 green:_command.color.g
@@ -63,7 +189,7 @@ NSColor * colorFromCommand(const Figma::RenderCommand & _command, CGFloat _alpha
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSColor * colorFromVertex(const Figma::RenderVertex & _vertex)
+NSColor * colorFromVertex(const figma_render_vertex_t & _vertex)
 {
     return [NSColor colorWithSRGBRed:_vertex.color.r
                                 green:_vertex.color.g
@@ -72,43 +198,43 @@ NSColor * colorFromVertex(const Figma::RenderVertex & _vertex)
 }
 
 //////////////////////////////////////////////////////////////////////////
-CGBlendMode cgBlendModeForCommand(const Figma::RenderCommand & _command)
+CGBlendMode cgBlendModeForCommand(const ViewerRenderCommand & _command)
 {
     switch(_command.blendMode)
     {
-    case Figma::ERenderBlendMode::Multiply:
+    case FIGMA_RENDER_BLEND_MULTIPLY:
         return kCGBlendModeMultiply;
-    case Figma::ERenderBlendMode::Screen:
+    case FIGMA_RENDER_BLEND_SCREEN:
         return kCGBlendModeScreen;
-    case Figma::ERenderBlendMode::Overlay:
+    case FIGMA_RENDER_BLEND_OVERLAY:
         return kCGBlendModeOverlay;
-    case Figma::ERenderBlendMode::Darken:
+    case FIGMA_RENDER_BLEND_DARKEN:
         return kCGBlendModeDarken;
-    case Figma::ERenderBlendMode::Lighten:
+    case FIGMA_RENDER_BLEND_LIGHTEN:
         return kCGBlendModeLighten;
-    case Figma::ERenderBlendMode::ColorDodge:
+    case FIGMA_RENDER_BLEND_COLOR_DODGE:
         return kCGBlendModeColorDodge;
-    case Figma::ERenderBlendMode::ColorBurn:
+    case FIGMA_RENDER_BLEND_COLOR_BURN:
         return kCGBlendModeColorBurn;
-    case Figma::ERenderBlendMode::SoftLight:
+    case FIGMA_RENDER_BLEND_SOFT_LIGHT:
         return kCGBlendModeSoftLight;
-    case Figma::ERenderBlendMode::HardLight:
+    case FIGMA_RENDER_BLEND_HARD_LIGHT:
         return kCGBlendModeHardLight;
-    case Figma::ERenderBlendMode::Difference:
+    case FIGMA_RENDER_BLEND_DIFFERENCE:
         return kCGBlendModeDifference;
-    case Figma::ERenderBlendMode::Exclusion:
+    case FIGMA_RENDER_BLEND_EXCLUSION:
         return kCGBlendModeExclusion;
-    case Figma::ERenderBlendMode::Hue:
+    case FIGMA_RENDER_BLEND_HUE:
         return kCGBlendModeHue;
-    case Figma::ERenderBlendMode::Saturation:
+    case FIGMA_RENDER_BLEND_SATURATION:
         return kCGBlendModeSaturation;
-    case Figma::ERenderBlendMode::Color:
+    case FIGMA_RENDER_BLEND_COLOR:
         return kCGBlendModeColor;
-    case Figma::ERenderBlendMode::Luminosity:
+    case FIGMA_RENDER_BLEND_LUMINOSITY:
         return kCGBlendModeLuminosity;
-    case Figma::ERenderBlendMode::PassThrough:
-    case Figma::ERenderBlendMode::Normal:
-    case Figma::ERenderBlendMode::Unsupported:
+    case FIGMA_RENDER_BLEND_PASS_THROUGH:
+    case FIGMA_RENDER_BLEND_NORMAL:
+    case FIGMA_RENDER_BLEND_UNSUPPORTED:
         break;
     }
 
@@ -116,43 +242,43 @@ CGBlendMode cgBlendModeForCommand(const Figma::RenderCommand & _command)
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSCompositingOperation compositingOperationForCommand(const Figma::RenderCommand & _command)
+NSCompositingOperation compositingOperationForCommand(const ViewerRenderCommand & _command)
 {
     switch(_command.blendMode)
     {
-    case Figma::ERenderBlendMode::Multiply:
+    case FIGMA_RENDER_BLEND_MULTIPLY:
         return NSCompositingOperationMultiply;
-    case Figma::ERenderBlendMode::Screen:
+    case FIGMA_RENDER_BLEND_SCREEN:
         return NSCompositingOperationScreen;
-    case Figma::ERenderBlendMode::Overlay:
+    case FIGMA_RENDER_BLEND_OVERLAY:
         return NSCompositingOperationOverlay;
-    case Figma::ERenderBlendMode::Darken:
+    case FIGMA_RENDER_BLEND_DARKEN:
         return NSCompositingOperationDarken;
-    case Figma::ERenderBlendMode::Lighten:
+    case FIGMA_RENDER_BLEND_LIGHTEN:
         return NSCompositingOperationLighten;
-    case Figma::ERenderBlendMode::ColorDodge:
+    case FIGMA_RENDER_BLEND_COLOR_DODGE:
         return NSCompositingOperationColorDodge;
-    case Figma::ERenderBlendMode::ColorBurn:
+    case FIGMA_RENDER_BLEND_COLOR_BURN:
         return NSCompositingOperationColorBurn;
-    case Figma::ERenderBlendMode::SoftLight:
+    case FIGMA_RENDER_BLEND_SOFT_LIGHT:
         return NSCompositingOperationSoftLight;
-    case Figma::ERenderBlendMode::HardLight:
+    case FIGMA_RENDER_BLEND_HARD_LIGHT:
         return NSCompositingOperationHardLight;
-    case Figma::ERenderBlendMode::Difference:
+    case FIGMA_RENDER_BLEND_DIFFERENCE:
         return NSCompositingOperationDifference;
-    case Figma::ERenderBlendMode::Exclusion:
+    case FIGMA_RENDER_BLEND_EXCLUSION:
         return NSCompositingOperationExclusion;
-    case Figma::ERenderBlendMode::Hue:
+    case FIGMA_RENDER_BLEND_HUE:
         return NSCompositingOperationHue;
-    case Figma::ERenderBlendMode::Saturation:
+    case FIGMA_RENDER_BLEND_SATURATION:
         return NSCompositingOperationSaturation;
-    case Figma::ERenderBlendMode::Color:
+    case FIGMA_RENDER_BLEND_COLOR:
         return NSCompositingOperationColor;
-    case Figma::ERenderBlendMode::Luminosity:
+    case FIGMA_RENDER_BLEND_LUMINOSITY:
         return NSCompositingOperationLuminosity;
-    case Figma::ERenderBlendMode::PassThrough:
-    case Figma::ERenderBlendMode::Normal:
-    case Figma::ERenderBlendMode::Unsupported:
+    case FIGMA_RENDER_BLEND_PASS_THROUGH:
+    case FIGMA_RENDER_BLEND_NORMAL:
+    case FIGMA_RENDER_BLEND_UNSUPPORTED:
         break;
     }
 
@@ -160,25 +286,25 @@ NSCompositingOperation compositingOperationForCommand(const Figma::RenderCommand
 }
 
 //////////////////////////////////////////////////////////////////////////
-const char * renderCommandTypeName(Figma::ERenderCommandType _type)
+const char * renderCommandTypeName(figma_render_command_type_t _type)
 {
     switch(_type)
     {
-    case Figma::ERenderCommandType::Fill:
+    case FIGMA_RENDER_COMMAND_FILL:
         return "Fill";
-    case Figma::ERenderCommandType::Stroke:
+    case FIGMA_RENDER_COMMAND_STROKE:
         return "Stroke";
-    case Figma::ERenderCommandType::Image:
+    case FIGMA_RENDER_COMMAND_IMAGE:
         return "Image";
-    case Figma::ERenderCommandType::Text:
+    case FIGMA_RENDER_COMMAND_TEXT:
         return "Text";
-    case Figma::ERenderCommandType::Mesh:
+    case FIGMA_RENDER_COMMAND_MESH:
         return "Mesh";
-    case Figma::ERenderCommandType::ClipBegin:
+    case FIGMA_RENDER_COMMAND_CLIP_BEGIN:
         return "ClipBegin";
-    case Figma::ERenderCommandType::ClipEnd:
+    case FIGMA_RENDER_COMMAND_CLIP_END:
         return "ClipEnd";
-    case Figma::ERenderCommandType::DebugHotspot:
+    case FIGMA_RENDER_COMMAND_DEBUG_HOTSPOT:
         return "Hotspot";
     }
 
@@ -186,15 +312,15 @@ const char * renderCommandTypeName(Figma::ERenderCommandType _type)
 }
 
 //////////////////////////////////////////////////////////////////////////
-const char * renderShapeTypeName(Figma::ERenderShapeType _type)
+const char * renderShapeTypeName(figma_render_shape_type_t _type)
 {
     switch(_type)
     {
-    case Figma::ERenderShapeType::Rectangle:
+    case FIGMA_RENDER_SHAPE_RECTANGLE:
         return "Rectangle";
-    case Figma::ERenderShapeType::RoundedRectangle:
+    case FIGMA_RENDER_SHAPE_ROUNDED_RECTANGLE:
         return "RoundedRectangle";
-    case Figma::ERenderShapeType::Ellipse:
+    case FIGMA_RENDER_SHAPE_ELLIPSE:
         return "Ellipse";
     }
 
@@ -202,15 +328,15 @@ const char * renderShapeTypeName(Figma::ERenderShapeType _type)
 }
 
 //////////////////////////////////////////////////////////////////////////
-const char * renderTextAlignHorizontalName(Figma::ERenderTextAlignHorizontal _type)
+const char * renderTextAlignHorizontalName(figma_render_text_align_horizontal_t _type)
 {
     switch(_type)
     {
-    case Figma::ERenderTextAlignHorizontal::Left:
+    case FIGMA_RENDER_TEXT_ALIGN_HORIZONTAL_LEFT:
         return "Left";
-    case Figma::ERenderTextAlignHorizontal::Center:
+    case FIGMA_RENDER_TEXT_ALIGN_HORIZONTAL_CENTER:
         return "Center";
-    case Figma::ERenderTextAlignHorizontal::Right:
+    case FIGMA_RENDER_TEXT_ALIGN_HORIZONTAL_RIGHT:
         return "Right";
     }
 
@@ -218,15 +344,15 @@ const char * renderTextAlignHorizontalName(Figma::ERenderTextAlignHorizontal _ty
 }
 
 //////////////////////////////////////////////////////////////////////////
-const char * renderTextAlignVerticalName(Figma::ERenderTextAlignVertical _type)
+const char * renderTextAlignVerticalName(figma_render_text_align_vertical_t _type)
 {
     switch(_type)
     {
-    case Figma::ERenderTextAlignVertical::Top:
+    case FIGMA_RENDER_TEXT_ALIGN_VERTICAL_TOP:
         return "Top";
-    case Figma::ERenderTextAlignVertical::Center:
+    case FIGMA_RENDER_TEXT_ALIGN_VERTICAL_CENTER:
         return "Center";
-    case Figma::ERenderTextAlignVertical::Bottom:
+    case FIGMA_RENDER_TEXT_ALIGN_VERTICAL_BOTTOM:
         return "Bottom";
     }
 
@@ -234,45 +360,45 @@ const char * renderTextAlignVerticalName(Figma::ERenderTextAlignVertical _type)
 }
 
 //////////////////////////////////////////////////////////////////////////
-const char * renderBlendModeName(Figma::ERenderBlendMode _type)
+const char * renderBlendModeName(figma_render_blend_mode_t _type)
 {
     switch(_type)
     {
-    case Figma::ERenderBlendMode::PassThrough:
+    case FIGMA_RENDER_BLEND_PASS_THROUGH:
         return "PassThrough";
-    case Figma::ERenderBlendMode::Normal:
+    case FIGMA_RENDER_BLEND_NORMAL:
         return "Normal";
-    case Figma::ERenderBlendMode::Multiply:
+    case FIGMA_RENDER_BLEND_MULTIPLY:
         return "Multiply";
-    case Figma::ERenderBlendMode::Screen:
+    case FIGMA_RENDER_BLEND_SCREEN:
         return "Screen";
-    case Figma::ERenderBlendMode::Overlay:
+    case FIGMA_RENDER_BLEND_OVERLAY:
         return "Overlay";
-    case Figma::ERenderBlendMode::Darken:
+    case FIGMA_RENDER_BLEND_DARKEN:
         return "Darken";
-    case Figma::ERenderBlendMode::Lighten:
+    case FIGMA_RENDER_BLEND_LIGHTEN:
         return "Lighten";
-    case Figma::ERenderBlendMode::ColorDodge:
+    case FIGMA_RENDER_BLEND_COLOR_DODGE:
         return "ColorDodge";
-    case Figma::ERenderBlendMode::ColorBurn:
+    case FIGMA_RENDER_BLEND_COLOR_BURN:
         return "ColorBurn";
-    case Figma::ERenderBlendMode::SoftLight:
+    case FIGMA_RENDER_BLEND_SOFT_LIGHT:
         return "SoftLight";
-    case Figma::ERenderBlendMode::HardLight:
+    case FIGMA_RENDER_BLEND_HARD_LIGHT:
         return "HardLight";
-    case Figma::ERenderBlendMode::Difference:
+    case FIGMA_RENDER_BLEND_DIFFERENCE:
         return "Difference";
-    case Figma::ERenderBlendMode::Exclusion:
+    case FIGMA_RENDER_BLEND_EXCLUSION:
         return "Exclusion";
-    case Figma::ERenderBlendMode::Hue:
+    case FIGMA_RENDER_BLEND_HUE:
         return "Hue";
-    case Figma::ERenderBlendMode::Saturation:
+    case FIGMA_RENDER_BLEND_SATURATION:
         return "Saturation";
-    case Figma::ERenderBlendMode::Color:
+    case FIGMA_RENDER_BLEND_COLOR:
         return "Color";
-    case Figma::ERenderBlendMode::Luminosity:
+    case FIGMA_RENDER_BLEND_LUMINOSITY:
         return "Luminosity";
-    case Figma::ERenderBlendMode::Unsupported:
+    case FIGMA_RENDER_BLEND_UNSUPPORTED:
         return "Unsupported";
     }
 
@@ -280,19 +406,19 @@ const char * renderBlendModeName(Figma::ERenderBlendMode _type)
 }
 
 //////////////////////////////////////////////////////////////////////////
-const char * renderImageScaleModeName(Figma::ERenderImageScaleMode _type)
+const char * renderImageScaleModeName(figma_render_image_scale_mode_t _type)
 {
     switch(_type)
     {
-    case Figma::ERenderImageScaleMode::Stretch:
+    case FIGMA_RENDER_IMAGE_SCALE_STRETCH:
         return "Stretch";
-    case Figma::ERenderImageScaleMode::Fit:
+    case FIGMA_RENDER_IMAGE_SCALE_FIT:
         return "Fit";
-    case Figma::ERenderImageScaleMode::Fill:
+    case FIGMA_RENDER_IMAGE_SCALE_FILL:
         return "Fill";
-    case Figma::ERenderImageScaleMode::Tile:
+    case FIGMA_RENDER_IMAGE_SCALE_TILE:
         return "Tile";
-    case Figma::ERenderImageScaleMode::Unknown:
+    case FIGMA_RENDER_IMAGE_SCALE_UNKNOWN:
         return "Unknown";
     }
 
@@ -316,13 +442,41 @@ NSString * wireframeModeTitle(EViewerWireframeMode _mode)
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSString * nsString(const Figma::FigmaString & _value)
+NSString * nsString(const std::string & _value)
 {
     return [[NSString alloc] initWithBytes:_value.data() length:_value.size() encoding:NSUTF8StringEncoding] ?: @"";
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSString * escapedInspectorString(const Figma::FigmaString & _value)
+NSString * nsString(figma_string_view_t value)
+{
+    return [[NSString alloc] initWithBytes:value.data
+                                    length:value.size
+                                  encoding:NSUTF8StringEncoding] ?: @"";
+}
+
+//////////////////////////////////////////////////////////////////////////
+NSString * documentPath(const figma_document_t * document)
+{
+    figma_inspection_document_desc_t desc = {};
+    return document != nullptr &&
+            figma_inspection_get_document(document, &desc) == FIGMA_RESULT_OK
+        ? nsString(desc.path)
+        : @"";
+}
+
+//////////////////////////////////////////////////////////////////////////
+NSString * documentFileName(const figma_document_t * document)
+{
+    figma_inspection_document_desc_t desc = {};
+    return document != nullptr &&
+            figma_inspection_get_document(document, &desc) == FIGMA_RESULT_OK
+        ? nsString(desc.file_name)
+        : @"";
+}
+
+//////////////////////////////////////////////////////////////////////////
+NSString * escapedInspectorString(const std::string & _value)
 {
     NSString * string = nsString(_value);
     string = [string stringByReplacingOccurrencesOfString:@"\n" withString:@"\\n"];
@@ -338,13 +492,13 @@ NSString * inspectorBoolString(bool _value)
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSString * inspectorRectString(const Figma::Rectf & _rect)
+NSString * inspectorRectString(const figma_rectf_t & _rect)
 {
     return [NSString stringWithFormat:@"x=%.3f y=%.3f w=%.3f h=%.3f", _rect.x, _rect.y, _rect.w, _rect.h];
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSString * inspectorColorString(const Figma::Colorf & _color)
+NSString * inspectorColorString(const figma_colorf_t & _color)
 {
     return [NSString stringWithFormat:@"r=%.3f g=%.3f b=%.3f a=%.3f", _color.r, _color.g, _color.b, _color.a];
 }
@@ -627,7 +781,7 @@ static void applyTint(CGFloat * const _red, CGFloat * const _green, CGFloat * co
 }
 
 //////////////////////////////////////////////////////////////////////////
-static CGFloat commandImageFilterValue(const Figma::RenderCommand & _command, std::size_t _filterColorAdjustIndex, std::size_t _paintFilterIndex)
+static CGFloat commandImageFilterValue(const ViewerRenderCommand & _command, std::size_t _filterColorAdjustIndex, std::size_t _paintFilterIndex)
 {
     CGFloat value = 0.0;
     if(_command.hasFilterColorAdjustValue == true && _filterColorAdjustIndex < std::size(_command.filterColorAdjust))
@@ -644,7 +798,7 @@ static CGFloat commandImageFilterValue(const Figma::RenderCommand & _command, st
 }
 
 //////////////////////////////////////////////////////////////////////////
-static bool commandHasImageFilter(const Figma::RenderCommand & _command)
+static bool commandHasImageFilter(const ViewerRenderCommand & _command)
 {
     constexpr std::size_t SupportedSharedFilterIndices[] = {0, 1, 2, 4, 6, 7};
     for(std::size_t index : SupportedSharedFilterIndices)
@@ -664,7 +818,7 @@ static bool commandHasImageFilter(const Figma::RenderCommand & _command)
 }
 
 //////////////////////////////////////////////////////////////////////////
-static NSImage * imageByApplyingFilter(NSImage * _image, const Figma::RenderCommand & _command)
+static NSImage * imageByApplyingFilter(NSImage * _image, const ViewerRenderCommand & _command)
 {
     if(commandHasImageFilter(_command) == false)
     {
@@ -814,95 +968,44 @@ static bool readFileText(const char * _path, std::string * const _text)
 }
 
 //////////////////////////////////////////////////////////////////////////
-float prototypeIntroAdvanceTime(const Figma::DocumentInterface * _document)
+float prototypeIntroAdvanceTime(const figma_document_t * _document)
 {
-    if(_document == nullptr)
-    {
-        return 0.0f;
-    }
-
-    const Figma::DocumentInspectionInterface * inspection = privateDocument(_document)->getInspection();
-    if(inspection == nullptr)
-    {
-        return 0.0f;
-    }
-
-    const Figma::CanvasNodeDesc * startFrame = inspection->getPrototypeStartFrame();
-    if(startFrame == nullptr)
-    {
-        return 0.0f;
-    }
-
-    const std::uint32_t interactionCount = static_cast<std::uint32_t>(startFrame->prototypeInteractions.size());
-    for(std::uint32_t interactionIndex = 0; interactionIndex != interactionCount; ++interactionIndex)
-    {
-        const Figma::PrototypeInteractionDesc * interaction = Figma::valueAt(startFrame->prototypeInteractions, interactionIndex);
-        if(interaction == nullptr || interaction->eventType != Figma::EPrototypeEventType::AfterTimeout)
-        {
-            continue;
-        }
-
-        const std::uint32_t actionCount = static_cast<std::uint32_t>(interaction->actions.size());
-        for(std::uint32_t actionIndex = 0; actionIndex != actionCount; ++actionIndex)
-        {
-            const Figma::PrototypeActionDesc * action = Figma::valueAt(interaction->actions, actionIndex);
-            if(action == nullptr || action->connectionType != Figma::EPrototypeConnectionType::InternalNode || action->targetNodeId.empty() == true)
-            {
-                continue;
-            }
-
-            if(action->navigationType != Figma::EPrototypeNavigationType::Navigate && action->navigationType != Figma::EPrototypeNavigationType::Overlay)
-            {
-                continue;
-            }
-
-            const Figma::CanvasNodeDesc * target = inspection->findCanvasNode(Figma::FigmaStringView(action->targetNodeId.data(), action->targetNodeId.size()));
-            if(target == nullptr || target->type != Figma::ECanvasNodeType::Frame)
-            {
-                continue;
-            }
-
-            return std::max(0.0f, interaction->transitionTimeout) + std::max(0.0f, action->transitionDuration) + (1.0f / 60.0f);
-        }
-    }
-
-    return 0.0f;
+    return figma_inspection_get_prototype_intro_advance_time(_document);
 }
 
 //////////////////////////////////////////////////////////////////////////
-Figma::PlayerDesc makePlayerDesc(const Figma::DocumentInterface * _document)
+figma_player_desc_t makePlayerDesc(const figma_document_t * _document)
 {
-    Figma::PlayerDesc playerDesc;
+    figma_player_desc_t playerDesc = {};
     if(_document != nullptr)
     {
-        const Figma::DocumentInspectionInterface * inspection = privateDocument(_document)->getInspection();
-        if(inspection != nullptr)
+        figma_rectf_t rect = {};
+        if(figma_document_get_prototype_start_frame_rect(
+               _document, &rect) != FIGMA_FALSE)
         {
-            if(const Figma::CanvasNodeDesc * prototypeFrame = inspection->getPrototypeStartFrame())
-            {
-                const Figma::Rectf rect = prototypeFrame->rect;
-                playerDesc.viewport.width = std::max(1.0f, rect.w);
-                playerDesc.viewport.height = std::max(1.0f, rect.h);
-                return playerDesc;
-            }
+            playerDesc.viewport.width = std::max(1.0f, rect.w);
+            playerDesc.viewport.height = std::max(1.0f, rect.h);
+            playerDesc.viewport.scale = 1.0f;
+            return playerDesc;
         }
     }
 
     playerDesc.viewport.width = 428.0f;
     playerDesc.viewport.height = 926.0f;
+    playerDesc.viewport.scale = 1.0f;
     return playerDesc;
 }
 
-Figma::EResult loadViewerDocument(Figma::RuntimeInterface * const _runtime,
+figma_result_t loadViewerDocument(figma_runtime_t * const _runtime,
                                          const std::string & _figPath,
                                          const char * _sidecarPath,
-                                         Figma::DocumentInterface ** const _document,
-                                         Figma::PlayerInterface ** const _player,
-                                         Figma::PlayerDesc * const _playerDesc)
+                                         figma_document_t ** const _document,
+                                         figma_player_t ** const _player,
+                                         figma_player_desc_t * const _playerDesc)
 {
     if(_runtime == nullptr || _document == nullptr || _player == nullptr || _playerDesc == nullptr)
     {
-        return Figma::EResult::InvalidArgument;
+        return FIGMA_RESULT_INVALID_ARGUMENT;
     }
 
     *_document = nullptr;
@@ -911,48 +1014,57 @@ Figma::EResult loadViewerDocument(Figma::RuntimeInterface * const _runtime,
     std::vector<std::uint8_t> figBytes;
     if(readFileBytes(_figPath.c_str(), &figBytes) == false)
     {
-        return Figma::EResult::IoFailed;
+        return FIGMA_RESULT_IO_FAILED;
     }
 
-    Figma::LoadOptions loadOptions;
-    loadOptions.sourceName = Figma::FigmaStringView(_figPath.data(), _figPath.size());
+    figma_load_options_t loadOptions = {};
+    loadOptions.source_name = {
+        _figPath.data(), _figPath.size()};
+    loadOptions.extract_image_assets = FIGMA_TRUE;
+    loadOptions.keep_canvas_bytes = FIGMA_TRUE;
 
-    Figma::DocumentInterface * documentPtr = nullptr;
-    Figma::EResult result = _runtime->loadDocumentFromFigData(figBytes.data(), figBytes.size(), loadOptions, &documentPtr);
-    if(result != Figma::EResult::Ok)
+    figma_document_t * documentPtr = nullptr;
+    figma_result_t result = figma_runtime_load_document_from_fig_data(
+        _runtime,
+        figBytes.data(),
+        figBytes.size(),
+        &loadOptions,
+        &documentPtr);
+    if(result != FIGMA_RESULT_OK)
     {
         return result;
     }
-    FigmaInterfaceOwner<Figma::DocumentInterface> document(documentPtr);
 
     if(_sidecarPath != nullptr)
     {
         std::string uxData;
         if(readFileText(_sidecarPath, &uxData) == true)
         {
-            document->loadUX(Figma::FigmaStringView(uxData.data(), uxData.size()));
+            (void)figma_document_load_ux(
+                documentPtr, {uxData.data(), uxData.size()});
         }
     }
 
-    Figma::PlayerDesc playerDesc = makePlayerDesc(document.get());
-    Figma::PlayerInterface * playerPtr = nullptr;
-    result = _runtime->createPlayer(document.get(), playerDesc, &playerPtr);
-    if(result != Figma::EResult::Ok)
+    figma_player_desc_t playerDesc = makePlayerDesc(documentPtr);
+    figma_player_t * playerPtr = nullptr;
+    result = figma_runtime_create_player(
+        _runtime, documentPtr, &playerDesc, &playerPtr);
+    if(result != FIGMA_RESULT_OK)
     {
+        figma_document_destroy(documentPtr);
         return result;
     }
-    FigmaInterfaceOwner<Figma::PlayerInterface> player(playerPtr);
 
-    const float initialAdvanceTime = prototypeIntroAdvanceTime(document.get());
+    const float initialAdvanceTime = prototypeIntroAdvanceTime(documentPtr);
     if(initialAdvanceTime > 0.0f)
     {
-        player->update(initialAdvanceTime);
+        (void)figma_player_update(playerPtr, initialAdvanceTime);
     }
 
-    *_document = document.release();
-    *_player = player.release();
+    *_document = documentPtr;
+    *_player = playerPtr;
     *_playerDesc = playerDesc;
-    return Figma::EResult::Ok;
+    return FIGMA_RESULT_OK;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -989,41 +1101,41 @@ NSString * playbackSpeedLabel(CGFloat _speed)
 }
 
 //////////////////////////////////////////////////////////////////////////
-Figma::EPointerButton pointerButtonFromEvent(NSEvent * _event)
+figma_pointer_button_t pointerButtonFromEvent(NSEvent * _event)
 {
     switch(_event.buttonNumber)
     {
     case 0:
-        return Figma::EPointerButton::Left;
+        return FIGMA_POINTER_BUTTON_LEFT;
     case 1:
-        return Figma::EPointerButton::Right;
+        return FIGMA_POINTER_BUTTON_RIGHT;
     case 2:
-        return Figma::EPointerButton::Middle;
+        return FIGMA_POINTER_BUTTON_MIDDLE;
     default:
-        return Figma::EPointerButton::Other;
+        return FIGMA_POINTER_BUTTON_OTHER;
     }
 }
 
 //////////////////////////////////////////////////////////////////////////
-Figma::InputModifierFlags inputModifiersFromEvent(NSEvent * _event)
+figma_input_modifier_flags_t inputModifiersFromEvent(NSEvent * _event)
 {
-    Figma::InputModifierFlags modifiers = Figma::EInputModifierFlag::None;
+    figma_input_modifier_flags_t modifiers = FIGMA_INPUT_MODIFIER_NONE;
     const NSEventModifierFlags flags = _event.modifierFlags;
     if((flags & NSEventModifierFlagShift) != 0)
     {
-        modifiers |= Figma::EInputModifierFlag::Shift;
+        modifiers |= FIGMA_INPUT_MODIFIER_SHIFT;
     }
     if((flags & NSEventModifierFlagControl) != 0)
     {
-        modifiers |= Figma::EInputModifierFlag::Control;
+        modifiers |= FIGMA_INPUT_MODIFIER_CONTROL;
     }
     if((flags & NSEventModifierFlagOption) != 0)
     {
-        modifiers |= Figma::EInputModifierFlag::Alt;
+        modifiers |= FIGMA_INPUT_MODIFIER_ALT;
     }
     if((flags & NSEventModifierFlagCommand) != 0)
     {
-        modifiers |= Figma::EInputModifierFlag::Command;
+        modifiers |= FIGMA_INPUT_MODIFIER_COMMAND;
     }
 
     return modifiers;
@@ -1036,15 +1148,15 @@ CGRect cgRectFromNSRect(NSRect _rect)
 }
 
 //////////////////////////////////////////////////////////////////////////
-void addShapePath(CGContextRef _context, Figma::ERenderShapeType _shape, NSRect _rect, CGFloat _radius)
+void addShapePath(CGContextRef _context, figma_render_shape_type_t _shape, NSRect _rect, CGFloat _radius)
 {
-    if(_shape == Figma::ERenderShapeType::Ellipse)
+    if(_shape == FIGMA_RENDER_SHAPE_ELLIPSE)
     {
         CGContextAddEllipseInRect(_context, cgRectFromNSRect(_rect));
         return;
     }
 
-    if(_shape == Figma::ERenderShapeType::RoundedRectangle && _radius > 0.0)
+    if(_shape == FIGMA_RENDER_SHAPE_ROUNDED_RECTANGLE && _radius > 0.0)
     {
         CGPathRef path = CGPathCreateWithRoundedRect(cgRectFromNSRect(_rect), _radius, _radius, nullptr);
         CGContextAddPath(_context, path);
@@ -1056,12 +1168,12 @@ void addShapePath(CGContextRef _context, Figma::ERenderShapeType _shape, NSRect 
 }
 
 //////////////////////////////////////////////////////////////////////////
-static CGFloat averageImageUAtX(const Figma::RenderCommand & _command, CGFloat _x)
+static CGFloat averageImageUAtX(const ViewerRenderCommand & _command, CGFloat _x)
 {
     CGFloat sum = 0.0;
     CGFloat count = 0.0;
     const CGFloat epsilon = std::max<CGFloat>(0.01, _command.rect.w * 0.01);
-    for(const Figma::RenderVertex & vertex : _command.vertices)
+    for(const figma_render_vertex_t & vertex : _command.vertices)
     {
         if(std::fabs(static_cast<CGFloat>(vertex.x) - _x) <= epsilon)
         {
@@ -1074,12 +1186,12 @@ static CGFloat averageImageUAtX(const Figma::RenderCommand & _command, CGFloat _
 }
 
 //////////////////////////////////////////////////////////////////////////
-static CGFloat averageImageVAtY(const Figma::RenderCommand & _command, CGFloat _y)
+static CGFloat averageImageVAtY(const ViewerRenderCommand & _command, CGFloat _y)
 {
     CGFloat sum = 0.0;
     CGFloat count = 0.0;
     const CGFloat epsilon = std::max<CGFloat>(0.01, _command.rect.h * 0.01);
-    for(const Figma::RenderVertex & vertex : _command.vertices)
+    for(const figma_render_vertex_t & vertex : _command.vertices)
     {
         if(std::fabs(static_cast<CGFloat>(vertex.y) - _y) <= epsilon)
         {
@@ -1164,7 +1276,7 @@ static NSImage * downsampledImageForDraw(NSImage * _image, NSRect _sourceRect, N
 }
 
 //////////////////////////////////////////////////////////////////////////
-void drawImageCommand(NSImage * _image, const Figma::AssetDesc * _asset, const Figma::RenderCommand & _command, NSRect _rect)
+void drawImageCommand(NSImage * _image, const figma_asset_desc_t * _asset, const ViewerRenderCommand & _command, NSRect _rect)
 {
     if(_image == nil)
     {
@@ -1188,7 +1300,7 @@ void drawImageCommand(NSImage * _image, const Figma::AssetDesc * _asset, const F
         CGFloat maxX = minX;
         CGFloat minY = static_cast<CGFloat>(_command.vertices.front().y);
         CGFloat maxY = minY;
-        for(const Figma::RenderVertex & vertex : _command.vertices)
+        for(const figma_render_vertex_t & vertex : _command.vertices)
         {
             u0 = std::min<CGFloat>(u0, static_cast<CGFloat>(vertex.u));
             v0 = std::min<CGFloat>(v0, static_cast<CGFloat>(vertex.v));
@@ -1248,7 +1360,7 @@ void drawImageCommand(NSImage * _image, const Figma::AssetDesc * _asset, const F
 }
 
 //////////////////////////////////////////////////////////////////////////
-void drawMeshCommand(const Figma::RenderCommand & _command)
+void drawMeshCommand(const ViewerRenderCommand & _command)
 {
     if(_command.vertices.empty() == true || _command.indices.size() < 3)
     {
@@ -1279,9 +1391,9 @@ void drawMeshCommand(const Figma::RenderCommand & _command)
             continue;
         }
 
-        const Figma::RenderVertex & v0 = _command.vertices[i0];
-        const Figma::RenderVertex & v1 = _command.vertices[i1];
-        const Figma::RenderVertex & v2 = _command.vertices[i2];
+        const figma_render_vertex_t & v0 = _command.vertices[i0];
+        const figma_render_vertex_t & v1 = _command.vertices[i1];
+        const figma_render_vertex_t & v2 = _command.vertices[i2];
 
         CGContextMoveToPoint(context, static_cast<CGFloat>(v0.x), static_cast<CGFloat>(v0.y));
         CGContextAddLineToPoint(context, static_cast<CGFloat>(v1.x), static_cast<CGFloat>(v1.y));

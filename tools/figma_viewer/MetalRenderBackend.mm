@@ -1,7 +1,5 @@
 #include "MetalRenderBackend.h"
 
-#include "../../sdk/src/RenderList.h"
-
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -20,16 +18,9 @@ extern "C"
 namespace
 {
     //////////////////////////////////////////////////////////////////////////
-    static std::string stdString(const Figma::FigmaString & _value)
+    static std::string stdString(const std::string & _value)
     {
         return std::string(_value.data(), _value.size());
-    }
-
-    //////////////////////////////////////////////////////////////////////////
-    static const Figma::RenderCommandVector & privateRenderCommands(const Figma::RenderListInterface * const _renderList)
-    {
-        const Figma::RenderList & renderList = static_cast<const Figma::RenderList &>(*_renderList);
-        return renderList.getCommands();
     }
 }
 
@@ -289,7 +280,7 @@ static void applyTint(CGFloat * const _red, CGFloat * const _green, CGFloat * co
 }
 
 //////////////////////////////////////////////////////////////////////////
-static CGFloat commandImageFilterValue(const Figma::RenderCommand & _command, std::size_t _filterColorAdjustIndex, std::size_t _paintFilterIndex)
+static CGFloat commandImageFilterValue(const ViewerRenderCommand & _command, std::size_t _filterColorAdjustIndex, std::size_t _paintFilterIndex)
 {
     CGFloat value = 0.0;
     if(_command.hasFilterColorAdjustValue == true && _filterColorAdjustIndex < std::size(_command.filterColorAdjust))
@@ -306,7 +297,7 @@ static CGFloat commandImageFilterValue(const Figma::RenderCommand & _command, st
 }
 
 //////////////////////////////////////////////////////////////////////////
-static bool commandHasImageFilter(const Figma::RenderCommand & _command)
+static bool commandHasImageFilter(const ViewerRenderCommand & _command)
 {
     constexpr std::size_t SupportedSharedFilterIndices[] = {0, 1, 2, 4, 6, 7};
     for(std::size_t index : SupportedSharedFilterIndices)
@@ -432,15 +423,15 @@ static bool decodeJpegPixels(const std::uint8_t * _bytes, std::size_t _size, Dec
 }
 
 //////////////////////////////////////////////////////////////////////////
-static bool decodeAssetPixels(const Figma::AssetDesc & _asset, DecodedImagePixelsDesc * const _image)
+static bool decodeAssetPixels(const figma_asset_desc_t & _asset, DecodedImagePixelsDesc * const _image)
 {
-    if(_asset.bytes.empty() == true)
+    if(_asset.bytes.data == nullptr || _asset.bytes.size == 0u)
     {
         return false;
     }
 
-    const std::uint8_t * bytes = _asset.bytes.data();
-    const std::size_t size = _asset.bytes.size();
+    const std::uint8_t * bytes = _asset.bytes.data;
+    const std::size_t size = _asset.bytes.size;
     if(size >= 8 && std::memcmp(bytes, "\x89PNG\r\n\x1a\n", 8) == 0)
     {
         return decodePngPixels(bytes, size, _image);
@@ -455,7 +446,7 @@ static bool decodeAssetPixels(const Figma::AssetDesc & _asset, DecodedImagePixel
 }
 
 //////////////////////////////////////////////////////////////////////////
-static void applyImageFilterToPixels(DecodedImagePixelsDesc * const _image, const Figma::RenderCommand & _command)
+static void applyImageFilterToPixels(DecodedImagePixelsDesc * const _image, const ViewerRenderCommand & _command)
 {
     if(_image == nullptr || commandHasImageFilter(_command) == false)
     {
@@ -527,7 +518,7 @@ enum class EMetalShapeType : std::uint32_t
 
 
 //////////////////////////////////////////////////////////////////////////
-static NSString * metalTextureCacheKey(const Figma::RenderCommand & _command)
+static NSString * metalTextureCacheKey(const ViewerRenderCommand & _command)
 {
     std::ostringstream stream;
     stream << stdString(_command.assetId);
@@ -547,39 +538,39 @@ static NSString * metalTextureCacheKey(const Figma::RenderCommand & _command)
 }
 
 //////////////////////////////////////////////////////////////////////////
-static EMetalBlendMode metalBlendModeForCommand(const Figma::RenderCommand & _command)
+static EMetalBlendMode metalBlendModeForCommand(const ViewerRenderCommand & _command)
 {
     switch(_command.blendMode)
     {
-    case Figma::ERenderBlendMode::Multiply:
+    case FIGMA_RENDER_BLEND_MULTIPLY:
         return EMetalBlendMode::Multiply;
-    case Figma::ERenderBlendMode::Screen:
+    case FIGMA_RENDER_BLEND_SCREEN:
         return EMetalBlendMode::Screen;
-    case Figma::ERenderBlendMode::Overlay:
+    case FIGMA_RENDER_BLEND_OVERLAY:
         return EMetalBlendMode::Overlay;
-    case Figma::ERenderBlendMode::Darken:
+    case FIGMA_RENDER_BLEND_DARKEN:
         return EMetalBlendMode::Darken;
-    case Figma::ERenderBlendMode::Lighten:
+    case FIGMA_RENDER_BLEND_LIGHTEN:
         return EMetalBlendMode::Lighten;
-    case Figma::ERenderBlendMode::ColorDodge:
+    case FIGMA_RENDER_BLEND_COLOR_DODGE:
         return EMetalBlendMode::ColorDodge;
-    case Figma::ERenderBlendMode::ColorBurn:
+    case FIGMA_RENDER_BLEND_COLOR_BURN:
         return EMetalBlendMode::ColorBurn;
-    case Figma::ERenderBlendMode::SoftLight:
+    case FIGMA_RENDER_BLEND_SOFT_LIGHT:
         return EMetalBlendMode::SoftLight;
-    case Figma::ERenderBlendMode::HardLight:
+    case FIGMA_RENDER_BLEND_HARD_LIGHT:
         return EMetalBlendMode::HardLight;
-    case Figma::ERenderBlendMode::Difference:
+    case FIGMA_RENDER_BLEND_DIFFERENCE:
         return EMetalBlendMode::Difference;
-    case Figma::ERenderBlendMode::Exclusion:
+    case FIGMA_RENDER_BLEND_EXCLUSION:
         return EMetalBlendMode::Exclusion;
-    case Figma::ERenderBlendMode::PassThrough:
-    case Figma::ERenderBlendMode::Normal:
-    case Figma::ERenderBlendMode::Hue:
-    case Figma::ERenderBlendMode::Saturation:
-    case Figma::ERenderBlendMode::Color:
-    case Figma::ERenderBlendMode::Luminosity:
-    case Figma::ERenderBlendMode::Unsupported:
+    case FIGMA_RENDER_BLEND_PASS_THROUGH:
+    case FIGMA_RENDER_BLEND_NORMAL:
+    case FIGMA_RENDER_BLEND_HUE:
+    case FIGMA_RENDER_BLEND_SATURATION:
+    case FIGMA_RENDER_BLEND_COLOR:
+    case FIGMA_RENDER_BLEND_LUMINOSITY:
+    case FIGMA_RENDER_BLEND_UNSUPPORTED:
         break;
     }
 
@@ -587,15 +578,15 @@ static EMetalBlendMode metalBlendModeForCommand(const Figma::RenderCommand & _co
 }
 
 //////////////////////////////////////////////////////////////////////////
-static EMetalShapeType metalShapeForCommand(const Figma::RenderCommand & _command)
+static EMetalShapeType metalShapeForCommand(const ViewerRenderCommand & _command)
 {
     switch(_command.shape)
     {
-    case Figma::ERenderShapeType::RoundedRectangle:
+    case FIGMA_RENDER_SHAPE_ROUNDED_RECTANGLE:
         return _command.cornerRadius > 0.0f ? EMetalShapeType::RoundedRectangle : EMetalShapeType::Rectangle;
-    case Figma::ERenderShapeType::Ellipse:
+    case FIGMA_RENDER_SHAPE_ELLIPSE:
         return EMetalShapeType::Ellipse;
-    case Figma::ERenderShapeType::Rectangle:
+    case FIGMA_RENDER_SHAPE_RECTANGLE:
         break;
     }
 
@@ -603,29 +594,29 @@ static EMetalShapeType metalShapeForCommand(const Figma::RenderCommand & _comman
 }
 
 //////////////////////////////////////////////////////////////////////////
-static bool metalBlendModeIsSupported(const Figma::RenderCommand & _command)
+static bool metalBlendModeIsSupported(const ViewerRenderCommand & _command)
 {
     switch(_command.blendMode)
     {
-    case Figma::ERenderBlendMode::PassThrough:
-    case Figma::ERenderBlendMode::Normal:
-    case Figma::ERenderBlendMode::Multiply:
-    case Figma::ERenderBlendMode::Screen:
-    case Figma::ERenderBlendMode::Overlay:
-    case Figma::ERenderBlendMode::Darken:
-    case Figma::ERenderBlendMode::Lighten:
-    case Figma::ERenderBlendMode::ColorDodge:
-    case Figma::ERenderBlendMode::ColorBurn:
-    case Figma::ERenderBlendMode::SoftLight:
-    case Figma::ERenderBlendMode::HardLight:
-    case Figma::ERenderBlendMode::Difference:
-    case Figma::ERenderBlendMode::Exclusion:
+    case FIGMA_RENDER_BLEND_PASS_THROUGH:
+    case FIGMA_RENDER_BLEND_NORMAL:
+    case FIGMA_RENDER_BLEND_MULTIPLY:
+    case FIGMA_RENDER_BLEND_SCREEN:
+    case FIGMA_RENDER_BLEND_OVERLAY:
+    case FIGMA_RENDER_BLEND_DARKEN:
+    case FIGMA_RENDER_BLEND_LIGHTEN:
+    case FIGMA_RENDER_BLEND_COLOR_DODGE:
+    case FIGMA_RENDER_BLEND_COLOR_BURN:
+    case FIGMA_RENDER_BLEND_SOFT_LIGHT:
+    case FIGMA_RENDER_BLEND_HARD_LIGHT:
+    case FIGMA_RENDER_BLEND_DIFFERENCE:
+    case FIGMA_RENDER_BLEND_EXCLUSION:
         return true;
-    case Figma::ERenderBlendMode::Hue:
-    case Figma::ERenderBlendMode::Saturation:
-    case Figma::ERenderBlendMode::Color:
-    case Figma::ERenderBlendMode::Luminosity:
-    case Figma::ERenderBlendMode::Unsupported:
+    case FIGMA_RENDER_BLEND_HUE:
+    case FIGMA_RENDER_BLEND_SATURATION:
+    case FIGMA_RENDER_BLEND_COLOR:
+    case FIGMA_RENDER_BLEND_LUMINOSITY:
+    case FIGMA_RENDER_BLEND_UNSUPPORTED:
         break;
     }
 
@@ -861,9 +852,9 @@ void MetalRenderBackend::clearTextureCache()
 }
 
 void MetalRenderBackend::render(CAMetalLayer * _layer,
-            Figma::DocumentInterface * _document,
+            figma_document_t * _document,
             FreeTypeTextRenderer * _textRenderer,
-            const Figma::RenderListInterface * const _renderList,
+            const ViewerRenderCommandVector & _commands,
             const std::vector<std::uint8_t> & _visibility,
             CGFloat _viewportWidth,
             CGFloat _viewportHeight,
@@ -903,18 +894,12 @@ void MetalRenderBackend::render(CAMetalLayer * _layer,
     }
 
     this->clearTexture(commandBuffer, currentTexture, MTLClearColorMake(0.0, 0.0, 0.0, 1.0));
-    if(_renderList == nullptr)
-    {
-        return;
-    }
-
-    const Figma::RenderCommandVector & commands = privateRenderCommands(_renderList);
     this->renderCommandRange(commandBuffer,
                              _document,
                              _textRenderer,
-                             commands,
+                             _commands,
                              0,
-                             commands.size(),
+                             _commands.size(),
                              _visibility,
                              currentTexture,
                              backdropTexture,
@@ -1410,22 +1395,26 @@ id<MTLTexture> MetalRenderBackend::textureFromRgbaPixels(const std::vector<std::
 }
 
 //////////////////////////////////////////////////////////////////////////
-id<MTLTexture> MetalRenderBackend::textureForCommand(Figma::DocumentInterface * _document, const Figma::RenderCommand & _command)
+id<MTLTexture> MetalRenderBackend::textureForCommand(figma_document_t * _document, const ViewerRenderCommand & _command)
 {
     if(_document == nullptr || _command.assetId.empty() == true)
     {
         return nil;
     }
 
-    const Figma::AssetDesc * asset = _document->findAsset(std::string_view(_command.assetId.data(), _command.assetId.size()));
-    if(asset == nullptr || asset->bytes.empty() == true)
+    figma_asset_desc_t asset = {};
+    const figma_string_view_t assetId = {
+        _command.assetId.data(), _command.assetId.size()};
+    if(figma_document_find_asset(_document, assetId, &asset) == FIGMA_FALSE ||
+        asset.bytes.data == nullptr ||
+        asset.bytes.size == 0u)
     {
         return nil;
     }
 
     NSString * cacheKey = metalTextureCacheKey(_command);
     DecodedImagePixelsDesc image;
-    if(decodeAssetPixels(*asset, &image) == false)
+    if(decodeAssetPixels(asset, &image) == false)
     {
         return nil;
     }
@@ -1435,7 +1424,7 @@ id<MTLTexture> MetalRenderBackend::textureForCommand(Figma::DocumentInterface * 
 }
 
 //////////////////////////////////////////////////////////////////////////
-id<MTLTexture> MetalRenderBackend::textureForText(FreeTypeTextRenderer * _textRenderer, const Figma::RenderCommand & _command, CGFloat _pixelScale)
+id<MTLTexture> MetalRenderBackend::textureForText(FreeTypeTextRenderer * _textRenderer, const ViewerRenderCommand & _command, CGFloat _pixelScale)
 {
     if(_textRenderer == nullptr)
     {
@@ -1455,13 +1444,13 @@ id<MTLTexture> MetalRenderBackend::textureForText(FreeTypeTextRenderer * _textRe
 }
 
 //////////////////////////////////////////////////////////////////////////
-void MetalRenderBackend::appendQuadVertices(std::vector<MetalVertexDesc> * const _vertices, const Figma::RenderCommand & _command)
+void MetalRenderBackend::appendQuadVertices(std::vector<MetalVertexDesc> * const _vertices, const ViewerRenderCommand & _command)
 {
     const float x0 = _command.rect.x;
     const float y0 = _command.rect.y;
     const float x1 = _command.rect.x + _command.rect.w;
     const float y1 = _command.rect.y + _command.rect.h;
-    const bool textured = _command.type == Figma::ERenderCommandType::Image || _command.type == Figma::ERenderCommandType::Text;
+    const bool textured = _command.type == FIGMA_RENDER_COMMAND_IMAGE || _command.type == FIGMA_RENDER_COMMAND_TEXT;
     const float red = textured == true ? 1.0f : _command.color.r;
     const float green = textured == true ? 1.0f : _command.color.g;
     const float blue = textured == true ? 1.0f : _command.color.b;
@@ -1476,7 +1465,7 @@ void MetalRenderBackend::appendQuadVertices(std::vector<MetalVertexDesc> * const
 }
 
 //////////////////////////////////////////////////////////////////////////
-bool MetalRenderBackend::buildCommandGeometry(const Figma::RenderCommand & _command, std::vector<MetalVertexDesc> * const _vertices, std::vector<std::uint16_t> * const _indices)
+bool MetalRenderBackend::buildCommandGeometry(const ViewerRenderCommand & _command, std::vector<MetalVertexDesc> * const _vertices, std::vector<std::uint16_t> * const _indices)
 {
     _vertices->clear();
     _indices->clear();
@@ -1484,14 +1473,14 @@ bool MetalRenderBackend::buildCommandGeometry(const Figma::RenderCommand & _comm
     if(_command.vertices.empty() == false && _command.indices.size() >= 3)
     {
         _vertices->reserve(_command.vertices.size());
-        for(const Figma::RenderVertex & vertex : _command.vertices)
+        for(const figma_render_vertex_t & vertex : _command.vertices)
         {
             MetalVertexDesc metalVertex = {};
             metalVertex.position[0] = vertex.x;
             metalVertex.position[1] = vertex.y;
             metalVertex.uv[0] = vertex.u;
             metalVertex.uv[1] = vertex.v;
-            if(_command.type == Figma::ERenderCommandType::Image || _command.type == Figma::ERenderCommandType::Text)
+            if(_command.type == FIGMA_RENDER_COMMAND_IMAGE || _command.type == FIGMA_RENDER_COMMAND_TEXT)
             {
                 metalVertex.color[0] = 1.0f;
                 metalVertex.color[1] = 1.0f;
@@ -1512,11 +1501,11 @@ bool MetalRenderBackend::buildCommandGeometry(const Figma::RenderCommand & _comm
         return true;
     }
 
-    if(_command.type == Figma::ERenderCommandType::Fill ||
-       _command.type == Figma::ERenderCommandType::Stroke ||
-       _command.type == Figma::ERenderCommandType::Text ||
-       _command.type == Figma::ERenderCommandType::Image ||
-       _command.type == Figma::ERenderCommandType::DebugHotspot)
+    if(_command.type == FIGMA_RENDER_COMMAND_FILL ||
+       _command.type == FIGMA_RENDER_COMMAND_STROKE ||
+       _command.type == FIGMA_RENDER_COMMAND_TEXT ||
+       _command.type == FIGMA_RENDER_COMMAND_IMAGE ||
+       _command.type == FIGMA_RENDER_COMMAND_DEBUG_HOTSPOT)
     {
         appendQuadVertices(_vertices, _command);
         *_indices = {0, 1, 2, 2, 1, 3};
@@ -1563,7 +1552,7 @@ void MetalRenderBackend::drawVertices(id<MTLCommandBuffer> _commandBuffer,
     [encoder endEncoding];
 }
 
-MetalUniformDesc MetalRenderBackend::makeUniforms(const Figma::RenderCommand & _command,
+MetalUniformDesc MetalRenderBackend::makeUniforms(const ViewerRenderCommand & _command,
                               bool _hasTexture,
                               CGFloat _viewportWidth,
                               CGFloat _viewportHeight,
@@ -1581,21 +1570,21 @@ MetalUniformDesc MetalRenderBackend::makeUniforms(const Figma::RenderCommand & _
     uniforms.commandRect[3] = _command.rect.h;
     uniforms.opacity = _command.opacity;
     uniforms.hasTexture = _hasTexture == true ? 1U : 0U;
-    uniforms.shape = static_cast<std::uint32_t>(_command.type == Figma::ERenderCommandType::Mesh ? EMetalShapeType::Rectangle : metalShapeForCommand(_command));
+    uniforms.shape = static_cast<std::uint32_t>(_command.type == FIGMA_RENDER_COMMAND_MESH ? EMetalShapeType::Rectangle : metalShapeForCommand(_command));
     uniforms.blendMode = static_cast<std::uint32_t>(metalBlendModeForCommand(_command));
     uniforms.pad1[0] = _command.cornerRadius;
     return uniforms;
 }
 
 //////////////////////////////////////////////////////////////////////////
-bool MetalRenderBackend::shouldSkipCommand(const Figma::RenderCommand & _command) const
+bool MetalRenderBackend::shouldSkipCommand(const ViewerRenderCommand & _command) const
 {
     if(_command.opacity <= 0.0f)
     {
         return true;
     }
 
-    if(_command.type != Figma::ERenderCommandType::Image && _command.color.a <= 0.0f)
+    if(_command.type != FIGMA_RENDER_COMMAND_IMAGE && _command.color.a <= 0.0f)
     {
         return true;
     }
@@ -1605,7 +1594,7 @@ bool MetalRenderBackend::shouldSkipCommand(const Figma::RenderCommand & _command
         return true;
     }
 
-    if(_command.type == Figma::ERenderCommandType::ClipBegin || _command.type == Figma::ERenderCommandType::ClipEnd)
+    if(_command.type == FIGMA_RENDER_COMMAND_CLIP_BEGIN || _command.type == FIGMA_RENDER_COMMAND_CLIP_END)
     {
         return true;
     }
@@ -1614,9 +1603,9 @@ bool MetalRenderBackend::shouldSkipCommand(const Figma::RenderCommand & _command
 }
 
 void MetalRenderBackend::drawCommand(id<MTLCommandBuffer> _commandBuffer,
-                 Figma::DocumentInterface * _document,
+                 figma_document_t * _document,
                  FreeTypeTextRenderer * _textRenderer,
-                 const Figma::RenderCommand & _command,
+                 const ViewerRenderCommand & _command,
                  id<MTLTexture> _target,
                  id<MTLTexture> _backdrop,
                  CGFloat _viewportWidth,
@@ -1631,7 +1620,7 @@ void MetalRenderBackend::drawCommand(id<MTLCommandBuffer> _commandBuffer,
 
     id<MTLTexture> sourceTexture = nil;
     bool hasTexture = false;
-    if(_command.type == Figma::ERenderCommandType::Image)
+    if(_command.type == FIGMA_RENDER_COMMAND_IMAGE)
     {
         sourceTexture = this->textureForCommand(_document, _command);
         if(sourceTexture == nil)
@@ -1640,7 +1629,7 @@ void MetalRenderBackend::drawCommand(id<MTLCommandBuffer> _commandBuffer,
         }
         hasTexture = true;
     }
-    else if(_command.type == Figma::ERenderCommandType::Text)
+    else if(_command.type == FIGMA_RENDER_COMMAND_TEXT)
     {
         const CGFloat rasterScale = static_cast<CGFloat>(_targetWidth) / std::max<CGFloat>(1.0, _viewportWidth);
         sourceTexture = this->textureForText(_textRenderer, _command, rasterScale);
@@ -1650,7 +1639,7 @@ void MetalRenderBackend::drawCommand(id<MTLCommandBuffer> _commandBuffer,
         }
         hasTexture = true;
     }
-    else if(_command.type == Figma::ERenderCommandType::DebugHotspot)
+    else if(_command.type == FIGMA_RENDER_COMMAND_DEBUG_HOTSPOT)
     {
         return;
     }
@@ -1676,8 +1665,8 @@ void MetalRenderBackend::drawLayerTexture(id<MTLCommandBuffer> _commandBuffer,
                       NSUInteger _targetWidth,
                       NSUInteger _targetHeight)
 {
-    Figma::RenderCommand command;
-    command.type = Figma::ERenderCommandType::Image;
+    ViewerRenderCommand command;
+    command.type = FIGMA_RENDER_COMMAND_IMAGE;
     command.rect.x = 0.0f;
     command.rect.y = 0.0f;
     command.rect.w = static_cast<float>(_viewportWidth);
@@ -1697,9 +1686,9 @@ void MetalRenderBackend::drawLayerTexture(id<MTLCommandBuffer> _commandBuffer,
 }
 
 void MetalRenderBackend::renderCommandRange(id<MTLCommandBuffer> _commandBuffer,
-                        Figma::DocumentInterface * _document,
+                        figma_document_t * _document,
                         FreeTypeTextRenderer * _textRenderer,
-                        const Figma::RenderCommandVector & _commands,
+                        const ViewerRenderCommandVector & _commands,
                         std::size_t _begin,
                         std::size_t _end,
                         const std::vector<std::uint8_t> & _visibility,
@@ -1713,7 +1702,7 @@ void MetalRenderBackend::renderCommandRange(id<MTLCommandBuffer> _commandBuffer,
 {
     for(std::size_t index = _begin; index != _end;)
     {
-        const Figma::RenderCommand & command = _commands[index];
+        const ViewerRenderCommand & command = _commands[index];
         if(index < _visibility.size() && _visibility[index] == 0)
         {
             ++index;
@@ -1775,7 +1764,7 @@ void MetalRenderBackend::copyTexture(id<MTLCommandBuffer> _commandBuffer,
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
     pass.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
 
-    Figma::RenderCommand command;
+    ViewerRenderCommand command;
     command.rect.x = 0.0f;
     command.rect.y = 0.0f;
     command.rect.w = static_cast<float>(_viewportWidth);

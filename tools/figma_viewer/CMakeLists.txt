@@ -13,16 +13,19 @@ if(APPLE)
     Main.mm
     MetalRenderBackend.h
     MetalRenderBackend.mm
+    ViewerRenderTypes.h
   )
 
-target_link_libraries(figma_viewer PRIVATE Figma::SDK freetype png_static figma_libjpeg)
+  target_link_libraries(figma_viewer PRIVATE Figma::SDK freetype png_static figma_libjpeg)
   target_include_directories(figma_viewer PRIVATE
-    "${CMAKE_SOURCE_DIR}/sdk/src"
-    "${CMAKE_SOURCE_DIR}/thirdparty/libjpeg/src"
+    "${FIGMA_ROOT_DIR}/sdk/src"
+    "${FIGMA_ROOT_DIR}/thirdparty/libjpeg/src"
     "${FIGMA_LIBJPEG_BUILD_DIR}"
   )
   target_compile_features(figma_viewer PRIVATE cxx_std_17)
   target_compile_options(figma_viewer PRIVATE -fobjc-arc)
+  target_link_options(
+    figma_viewer PRIVATE ${FIGMA_SANITIZER_LINK_OPTIONS})
   set_target_properties(figma_viewer PROPERTIES
     MACOSX_BUNDLE_BUNDLE_NAME "Figma Viewer"
     MACOSX_BUNDLE_GUI_IDENTIFIER "dev.figma.viewer"

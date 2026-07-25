@@ -5,9 +5,9 @@
 @interface FigmaAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property(nonatomic, strong) NSWindow * window;
 @property(nonatomic, strong) FigmaViewerView * view;
-@property(nonatomic) Figma::RuntimeInterface * runtime;
-@property(nonatomic) Figma::DocumentInterface * document;
-@property(nonatomic) Figma::PlayerInterface * player;
+@property(nonatomic) figma_runtime_t * runtime;
+@property(nonatomic) figma_document_t * document;
+@property(nonatomic) figma_player_t * player;
 @property(nonatomic, strong) NSTimer * timer;
 @property(nonatomic, strong) NSDate * lastTickTime;
 @property(nonatomic) NSTimeInterval timerInterval;

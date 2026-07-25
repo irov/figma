@@ -11,13 +11,13 @@
 namespace
 {
     //////////////////////////////////////////////////////////////////////////
-    static std::string stdString(const Figma::FigmaString & _value)
+    static std::string stdString(const std::string & _value)
     {
         return std::string(_value.data(), _value.size());
     }
 
     //////////////////////////////////////////////////////////////////////////
-    static NSString * nsString(const Figma::FigmaString & _value)
+    static NSString * nsString(const std::string & _value)
     {
         return [[NSString alloc] initWithBytes:_value.data() length:_value.size() encoding:NSUTF8StringEncoding] ?: @"";
     }
@@ -30,43 +30,43 @@ namespace
     }
 
     //////////////////////////////////////////////////////////////////////////
-    static NSCompositingOperation compositingOperationForCommand(const Figma::RenderCommand & _command)
+    static NSCompositingOperation compositingOperationForCommand(const ViewerRenderCommand & _command)
     {
         switch(_command.blendMode)
         {
-        case Figma::ERenderBlendMode::Multiply:
+        case FIGMA_RENDER_BLEND_MULTIPLY:
             return NSCompositingOperationMultiply;
-        case Figma::ERenderBlendMode::Screen:
+        case FIGMA_RENDER_BLEND_SCREEN:
             return NSCompositingOperationScreen;
-        case Figma::ERenderBlendMode::Overlay:
+        case FIGMA_RENDER_BLEND_OVERLAY:
             return NSCompositingOperationOverlay;
-        case Figma::ERenderBlendMode::Darken:
+        case FIGMA_RENDER_BLEND_DARKEN:
             return NSCompositingOperationDarken;
-        case Figma::ERenderBlendMode::Lighten:
+        case FIGMA_RENDER_BLEND_LIGHTEN:
             return NSCompositingOperationLighten;
-        case Figma::ERenderBlendMode::ColorDodge:
+        case FIGMA_RENDER_BLEND_COLOR_DODGE:
             return NSCompositingOperationColorDodge;
-        case Figma::ERenderBlendMode::ColorBurn:
+        case FIGMA_RENDER_BLEND_COLOR_BURN:
             return NSCompositingOperationColorBurn;
-        case Figma::ERenderBlendMode::SoftLight:
+        case FIGMA_RENDER_BLEND_SOFT_LIGHT:
             return NSCompositingOperationSoftLight;
-        case Figma::ERenderBlendMode::HardLight:
+        case FIGMA_RENDER_BLEND_HARD_LIGHT:
             return NSCompositingOperationHardLight;
-        case Figma::ERenderBlendMode::Difference:
+        case FIGMA_RENDER_BLEND_DIFFERENCE:
             return NSCompositingOperationDifference;
-        case Figma::ERenderBlendMode::Exclusion:
+        case FIGMA_RENDER_BLEND_EXCLUSION:
             return NSCompositingOperationExclusion;
-        case Figma::ERenderBlendMode::Hue:
+        case FIGMA_RENDER_BLEND_HUE:
             return NSCompositingOperationHue;
-        case Figma::ERenderBlendMode::Saturation:
+        case FIGMA_RENDER_BLEND_SATURATION:
             return NSCompositingOperationSaturation;
-        case Figma::ERenderBlendMode::Color:
+        case FIGMA_RENDER_BLEND_COLOR:
             return NSCompositingOperationColor;
-        case Figma::ERenderBlendMode::Luminosity:
+        case FIGMA_RENDER_BLEND_LUMINOSITY:
             return NSCompositingOperationLuminosity;
-        case Figma::ERenderBlendMode::PassThrough:
-        case Figma::ERenderBlendMode::Normal:
-        case Figma::ERenderBlendMode::Unsupported:
+        case FIGMA_RENDER_BLEND_PASS_THROUGH:
+        case FIGMA_RENDER_BLEND_NORMAL:
+        case FIGMA_RENDER_BLEND_UNSUPPORTED:
             break;
         }
 
@@ -108,13 +108,13 @@ FreeTypeTextRenderer::~FreeTypeTextRenderer()
 }
 
 //////////////////////////////////////////////////////////////////////////
-void FreeTypeTextRenderer::drawText(const Figma::RenderCommand & _command, NSRect _rect)
+void FreeTypeTextRenderer::drawText(const ViewerRenderCommand & _command, NSRect _rect)
 {
     this->drawTextAtRasterScale(_command, _rect, pixelScaleForCurrentContext());
 }
 
 //////////////////////////////////////////////////////////////////////////
-bool FreeTypeTextRenderer::makeTextPixels(const Figma::RenderCommand & _command, NSSize _pointSize, CGFloat _rasterScale, std::vector<std::uint8_t> * const _pixels, NSUInteger * const _width, NSUInteger * const _height)
+bool FreeTypeTextRenderer::makeTextPixels(const ViewerRenderCommand & _command, NSSize _pointSize, CGFloat _rasterScale, std::vector<std::uint8_t> * const _pixels, NSUInteger * const _width, NSUInteger * const _height)
 {
     if(m_library == nullptr || _command.text.empty() == true || _command.color.a <= 0.0f || _pixels == nullptr || _width == nullptr || _height == nullptr)
     {
@@ -141,7 +141,7 @@ bool FreeTypeTextRenderer::makeTextPixels(const Figma::RenderCommand & _command,
         return false;
     }
 
-    Figma::RenderCommand textCommand = _command;
+    ViewerRenderCommand textCommand = _command;
     textCommand.opacity = 1.0f;
 
     _pixels->assign(pixelWidth * pixelHeight * 4, 0);
@@ -198,13 +198,13 @@ void FreeTypeTextRenderer::clearMissingFonts()
 }
 
 //////////////////////////////////////////////////////////////////////////
-void FreeTypeTextRenderer::collectMissingFonts(const Figma::RenderCommandVector & _commands)
+void FreeTypeTextRenderer::collectMissingFonts(const ViewerRenderCommandVector & _commands)
 {
     this->clearMissingFonts();
 
-    for(const Figma::RenderCommand & command : _commands)
+    for(const ViewerRenderCommand & command : _commands)
     {
-        if(command.type != Figma::ERenderCommandType::Text)
+        if(command.type != FIGMA_RENDER_COMMAND_TEXT)
         {
             continue;
         }
@@ -251,7 +251,7 @@ NSArray<NSString *> * FreeTypeTextRenderer::fontSearchDirectories() const
 }
 
 //////////////////////////////////////////////////////////////////////////
-void FreeTypeTextRenderer::drawTextAtRasterScale(const Figma::RenderCommand & _command, NSRect _rect, CGFloat _rasterScale)
+void FreeTypeTextRenderer::drawTextAtRasterScale(const ViewerRenderCommand & _command, NSRect _rect, CGFloat _rasterScale)
 {
     if(m_library == nullptr || _command.text.empty() == true || _command.opacity <= 0.0f || _command.color.a <= 0.0f)
     {
@@ -404,7 +404,7 @@ CGFloat FreeTypeTextRenderer::horizontalScaleForLine(FT_Face _face, const std::v
 }
 
 //////////////////////////////////////////////////////////////////////////
-CGFloat FreeTypeTextRenderer::verticalScaleForLine(FT_Face _face, const Figma::RenderCommand & _command, const Figma::RenderTextLineDesc & _line, CGFloat _rasterScale)
+CGFloat FreeTypeTextRenderer::verticalScaleForLine(FT_Face _face, const ViewerRenderCommand & _command, const ViewerRenderTextLineDesc & _line, CGFloat _rasterScale)
 {
     if(_face == nullptr || _line.lineAscent <= 0.0f || _rasterScale <= 0.0)
     {
@@ -468,16 +468,16 @@ std::string_view FreeTypeTextRenderer::explicitLineSegment(std::string_view _vie
 }
 
 //////////////////////////////////////////////////////////////////////////
-std::string_view FreeTypeTextRenderer::sourceTextView(const Figma::RenderCommand & _command, const Figma::RenderTextLineDesc & _line)
+std::string_view FreeTypeTextRenderer::sourceTextView(const ViewerRenderCommand & _command, const ViewerRenderTextLineDesc & _line)
 {
-    const Figma::FigmaString & source = _line.text.empty() == false ? _line.text : _command.text;
+    const std::string & source = _line.text.empty() == false ? _line.text : _command.text;
     return std::string_view(source.data(), source.size());
 }
 
 //////////////////////////////////////////////////////////////////////////
-std::string_view FreeTypeTextRenderer::textLineView(const Figma::RenderCommand & _command, std::size_t _lineIndex)
+std::string_view FreeTypeTextRenderer::textLineView(const ViewerRenderCommand & _command, std::size_t _lineIndex)
 {
-    const Figma::RenderTextLineDesc & line = _command.textLines[_lineIndex];
+    const ViewerRenderTextLineDesc & line = _command.textLines[_lineIndex];
     std::string_view view = sourceTextView(_command, line);
     if(view.find_first_of("\r\n") == std::string_view::npos)
     {
@@ -584,7 +584,7 @@ void FreeTypeTextRenderer::blendStraightPixel(unsigned char * const _target, CGF
 }
 
 //////////////////////////////////////////////////////////////////////////
-void FreeTypeTextRenderer::blendGlyphBitmapPixel(const FT_Bitmap & _bitmap, NSInteger _sourceX, NSInteger _sourceY, unsigned char * const _target, const Figma::RenderCommand & _command)
+void FreeTypeTextRenderer::blendGlyphBitmapPixel(const FT_Bitmap & _bitmap, NSInteger _sourceX, NSInteger _sourceY, unsigned char * const _target, const ViewerRenderCommand & _command)
 {
     const CGFloat commandAlpha = std::clamp<CGFloat>(_command.color.a, 0.0, 1.0);
     if(commandAlpha <= 0.0)
@@ -630,7 +630,7 @@ void FreeTypeTextRenderer::blendGlyphBitmapPixel(const FT_Bitmap & _bitmap, NSIn
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSImage * FreeTypeTextRenderer::makeGlyphImage(const FT_Bitmap & _bitmap, const Figma::RenderCommand & _command)
+NSImage * FreeTypeTextRenderer::makeGlyphImage(const FT_Bitmap & _bitmap, const ViewerRenderCommand & _command)
 {
     if(_bitmap.width == 0 || _bitmap.rows == 0 || _bitmap.buffer == nullptr)
     {
@@ -729,7 +729,7 @@ NSImage * FreeTypeTextRenderer::makeGlyphImage(const FT_Bitmap & _bitmap, const 
 }
 
 //////////////////////////////////////////////////////////////////////////
-FT_Face FreeTypeTextRenderer::faceForCommand(const Figma::RenderCommand & _command)
+FT_Face FreeTypeTextRenderer::faceForCommand(const ViewerRenderCommand & _command)
 {
     const std::string key = this->fontKeyForCommand(_command);
     if(key.empty() == true)
@@ -754,7 +754,7 @@ FT_Face FreeTypeTextRenderer::faceForCommand(const Figma::RenderCommand & _comma
 }
 
 //////////////////////////////////////////////////////////////////////////
-std::string FreeTypeTextRenderer::fontKeyForCommand(const Figma::RenderCommand & _command) const
+std::string FreeTypeTextRenderer::fontKeyForCommand(const ViewerRenderCommand & _command) const
 {
     if(_command.fontPostscriptName.empty() == false)
     {
@@ -928,7 +928,7 @@ NSString * FreeTypeTextRenderer::fontRequestDescription(const std::string & _pos
 }
 
 //////////////////////////////////////////////////////////////////////////
-void FreeTypeTextRenderer::recordMissingFont(const Figma::RenderCommand & _command, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName)
+void FreeTypeTextRenderer::recordMissingFont(const ViewerRenderCommand & _command, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName)
 {
     const std::string key = this->fontKeyForCommand(_command);
     if(key.empty() == true)
@@ -973,7 +973,7 @@ FT_Face FreeTypeTextRenderer::openConfiguredOrSystemFace(const std::string & _po
 }
 
 //////////////////////////////////////////////////////////////////////////
-FT_Face FreeTypeTextRenderer::openFaceForCommand(const Figma::RenderCommand & _command)
+FT_Face FreeTypeTextRenderer::openFaceForCommand(const ViewerRenderCommand & _command)
 {
     const std::string postscriptName = stdString(_command.fontPostscriptName);
     const std::string familyName = stdString(_command.fontFamily);
@@ -995,12 +995,12 @@ FT_Face FreeTypeTextRenderer::openFaceForCommand(const Figma::RenderCommand & _c
 }
 
 //////////////////////////////////////////////////////////////////////////
-void FreeTypeTextRenderer::drawDecodedLines(FT_Face _face, const Figma::RenderCommand & _command, NSRect _rect, CGFloat _rasterScale)
+void FreeTypeTextRenderer::drawDecodedLines(FT_Face _face, const ViewerRenderCommand & _command, NSRect _rect, CGFloat _rasterScale)
 {
     const std::size_t textLineSize = _command.textLines.size();
     for(std::size_t lineIndex = 0; lineIndex != textLineSize; ++lineIndex)
     {
-        const Figma::RenderTextLineDesc & line = _command.textLines[lineIndex];
+        const ViewerRenderTextLineDesc & line = _command.textLines[lineIndex];
         std::string_view lineText = textLineView(_command, lineIndex);
         std::vector<char32_t> codepoints = decodeUtf8(lineText);
         if(codepoints.empty() == true)
@@ -1018,7 +1018,7 @@ void FreeTypeTextRenderer::drawDecodedLines(FT_Face _face, const Figma::RenderCo
 }
 
 //////////////////////////////////////////////////////////////////////////
-void FreeTypeTextRenderer::drawLine(FT_Face _face, const Figma::RenderCommand & _command, const std::vector<char32_t> & _codepoints, CGFloat _baselineX, CGFloat _baselineY, CGFloat _rasterScale, CGFloat _horizontalScale, CGFloat _verticalScale)
+void FreeTypeTextRenderer::drawLine(FT_Face _face, const ViewerRenderCommand & _command, const std::vector<char32_t> & _codepoints, CGFloat _baselineX, CGFloat _baselineY, CGFloat _rasterScale, CGFloat _horizontalScale, CGFloat _verticalScale)
 {
     CGFloat penX = _baselineX;
     FT_UInt previousGlyph = 0;
@@ -1072,12 +1072,12 @@ void FreeTypeTextRenderer::drawLine(FT_Face _face, const Figma::RenderCommand & 
 }
 
 //////////////////////////////////////////////////////////////////////////
-void FreeTypeTextRenderer::rasterizeDecodedLines(FT_Face _face, const Figma::RenderCommand & _command, CGFloat _rasterScale, unsigned char * const _pixels, NSUInteger _width, NSUInteger _height, NSUInteger _stride)
+void FreeTypeTextRenderer::rasterizeDecodedLines(FT_Face _face, const ViewerRenderCommand & _command, CGFloat _rasterScale, unsigned char * const _pixels, NSUInteger _width, NSUInteger _height, NSUInteger _stride)
 {
     const std::size_t textLineSize = _command.textLines.size();
     for(std::size_t lineIndex = 0; lineIndex != textLineSize; ++lineIndex)
     {
-        const Figma::RenderTextLineDesc & line = _command.textLines[lineIndex];
+        const ViewerRenderTextLineDesc & line = _command.textLines[lineIndex];
         std::string_view lineText = textLineView(_command, lineIndex);
         std::vector<char32_t> codepoints = decodeUtf8(lineText);
         if(codepoints.empty() == true)
@@ -1097,7 +1097,7 @@ void FreeTypeTextRenderer::rasterizeDecodedLines(FT_Face _face, const Figma::Ren
 }
 
 //////////////////////////////////////////////////////////////////////////
-void FreeTypeTextRenderer::rasterizeLine(FT_Face _face, const Figma::RenderCommand & _command, const std::vector<char32_t> & _codepoints, CGFloat _baselineX, CGFloat _baselineY, CGFloat _horizontalScale, CGFloat _verticalScale, unsigned char * const _pixels, NSUInteger _width, NSUInteger _height, NSUInteger _stride)
+void FreeTypeTextRenderer::rasterizeLine(FT_Face _face, const ViewerRenderCommand & _command, const std::vector<char32_t> & _codepoints, CGFloat _baselineX, CGFloat _baselineY, CGFloat _horizontalScale, CGFloat _verticalScale, unsigned char * const _pixels, NSUInteger _width, NSUInteger _height, NSUInteger _stride)
 {
     CGFloat penX = _baselineX;
     FT_UInt previousGlyph = 0;
