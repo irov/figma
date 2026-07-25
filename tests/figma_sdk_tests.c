@@ -400,6 +400,7 @@ static int __test_version_and_allocator(void)
     figma_runtime_desc_t desc;
     figma_runtime_t * runtime = (figma_runtime_t *)(uintptr_t)1u;
     figma_document_t * document = (figma_document_t *)(uintptr_t)1u;
+    void * aligned;
     figma_result_t result;
     const unsigned char invalid_fig[] = {0u};
 
@@ -426,6 +427,11 @@ static int __test_version_and_allocator(void)
     TEST_CHECK(result == FIGMA_RESULT_OK);
     TEST_CHECK(runtime != NULL);
     TEST_CHECK(state.active == 1u);
+
+    aligned = figma_memory_allocate(&runtime->memory, sizeof(double));
+    TEST_CHECK(aligned != NULL);
+    TEST_CHECK((uintptr_t)aligned % _Alignof(double) == 0u);
+    figma_memory_deallocate(&runtime->memory, aligned);
 
     state.fail_at = state.calls + 1u;
     result = figma_runtime_load_document_from_fig_data(

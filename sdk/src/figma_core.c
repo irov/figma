@@ -8,7 +8,11 @@
 
 typedef union figma_memory_alignment
 {
+#if defined(_MSC_VER)
+    double alignment;
+#else
     max_align_t alignment;
+#endif
     size_t size;
 } figma_memory_alignment_t;
 
