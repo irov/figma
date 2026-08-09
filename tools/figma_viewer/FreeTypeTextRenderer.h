@@ -51,7 +51,6 @@ protected:
     static bool faceMatches(FT_Face _face, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);
     FT_Face openFaceAtPath(NSString * _path, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);
     FT_Face openMatchingFaceInDirectory(NSString * _directory, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);
-    static NSArray<NSString *> * environmentFontSearchDirectories();
     static NSArray<NSString *> * defaultFontSearchDirectories();
     static NSString * fontRequestDescription(const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);
     void recordMissingFont(const ViewerRenderCommand & _command, const std::string & _postscriptName, const std::string & _familyName, const std::string & _styleName);

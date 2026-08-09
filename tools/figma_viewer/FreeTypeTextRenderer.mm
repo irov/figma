@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cctype>
-#include <cstdlib>
 #include <filesystem>
 
 namespace
@@ -245,7 +244,6 @@ NSArray<NSString *> * FreeTypeTextRenderer::fontSearchDirectories() const
         [directories addObject:[NSString stringWithUTF8String:directory.c_str()] ?: @""];
     }
 
-    [directories addObjectsFromArray:environmentFontSearchDirectories()];
     [directories addObjectsFromArray:defaultFontSearchDirectories()];
     return directories;
 }
@@ -866,35 +864,6 @@ FT_Face FreeTypeTextRenderer::openMatchingFaceInDirectory(NSString * _directory,
 }
 
 //////////////////////////////////////////////////////////////////////////
-NSArray<NSString *> * FreeTypeTextRenderer::environmentFontSearchDirectories()
-{
-    NSMutableArray<NSString *> * directories = [NSMutableArray array];
-
-    const char * const envValue = std::getenv("FIGMA_VIEWER_FONT_DIRS");
-    if(envValue != nullptr && envValue[0] != '\0')
-    {
-        NSString * envString = [NSString stringWithUTF8String:envValue];
-        if(envString != nil)
-        {
-            NSCharacterSet * trimSet = [NSCharacterSet whitespaceAndNewlineCharacterSet];
-            NSArray<NSString *> * envDirectories = [envString componentsSeparatedByString:@":"];
-            for(NSString * directory in envDirectories)
-            {
-                NSString * trimmed = [directory stringByTrimmingCharactersInSet:trimSet];
-                if(trimmed.length == 0)
-                {
-                    continue;
-                }
-
-                [directories addObject:[trimmed stringByExpandingTildeInPath]];
-            }
-        }
-    }
-
-    return directories;
-}
-
-//////////////////////////////////////////////////////////////////////////
 NSArray<NSString *> * FreeTypeTextRenderer::defaultFontSearchDirectories()
 {
     return @[
@@ -943,7 +912,7 @@ void FreeTypeTextRenderer::recordMissingFont(const ViewerRenderCommand & _comman
         return;
     }
 
-    NSLog(@"Figma Viewer missing font for node %@: %@. Install the font in a system font directory, choose a font folder in the viewer, or pass a font collection with FIGMA_VIEWER_FONT_DIRS. Search directories: %@",
+    NSLog(@"Figma Viewer missing font for node %@: %@. Install the font in a system font directory or choose a font folder in the viewer. Search directories: %@",
           nsString(_command.nodeId),
           description,
           [this->fontSearchDirectories() componentsJoinedByString:@", "]);

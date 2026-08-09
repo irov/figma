@@ -84,7 +84,7 @@ Callback tables (`figma_action_router_t` and `figma_data_context_t`) are copied 
 
 The viewer requires a local `.fig` path argument and starts in prototype viewport mode by default with an iPhone 14 Plus aspect ratio. It draws only the rectangular screen viewport, not a phone body. If the requested `.fig` path is missing but `<path>.zip` exists, the viewer opens the ZIP export automatically.
 
-Text rendering uses decoded Figma font metadata and searches `FIGMA_VIEWER_FONT_DIRS` plus system font directories. Missing `.fig` fonts are logged by the viewer instead of being bundled as sample-specific fallbacks.
+Text rendering uses decoded Figma font metadata and searches system font directories. Missing `.fig` fonts are logged by the viewer instead of being bundled as sample-specific fallbacks.
 
 ## UX `.ux.json`
 
