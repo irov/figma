@@ -4046,11 +4046,11 @@ static figma_vec2f_t __figma_player_local_path_point(figma_rectf_t rect, figma_v
 }
 
 //////////////////////////////////////////////////////////////////////////
-static figma_bool_t __figma_player_append_path(gp_canvas_t * canvas, figma_rectf_t rect, const figma_canvas_path_t * path, figma_bool_t fill)
+static figma_bool_t __figma_player_append_path(gp_path_t * graphics_path, figma_rectf_t rect, const figma_canvas_path_t * path)
 {
     figma_bool_t has_contour = FIGMA_FALSE;
+    figma_bool_t has_segment = FIGMA_FALSE;
     figma_vec2f_t start = {0.0f, 0.0f};
-    figma_vec2f_t current = {0.0f, 0.0f};
     size_t index;
 
     if(path->commands_decoded == FIGMA_FALSE || path->commands.size == 0u)
@@ -4069,13 +4069,13 @@ static figma_bool_t __figma_player_append_path(gp_canvas_t * canvas, figma_rectf
         {
             const figma_vec2f_t point =
                 __figma_player_local_path_point(rect, command->p0);
-            if(gp_point_move_to(canvas, point.x, point.y) == GP_FAILURE)
+            if(gp_path_move_to(graphics_path, point.x, point.y) == GP_FAILURE)
             {
                 return FIGMA_FALSE;
             }
             start = point;
-            current = point;
             has_contour = FIGMA_TRUE;
+            has_segment = FIGMA_FALSE;
         }
         break;
         case FIGMA_CANVAS_PATH_LINE_TO:
@@ -4096,17 +4096,16 @@ static figma_bool_t __figma_player_append_path(gp_canvas_t * canvas, figma_rectf
                             ->type == FIGMA_CANVAS_PATH_CLOSE
                 ? FIGMA_TRUE
                 : FIGMA_FALSE;
-            if(fill == FIGMA_TRUE && next_closes == FIGMA_TRUE &&
+            if(next_closes == FIGMA_TRUE &&
                 __figma_player_same_point(point, start) == FIGMA_TRUE)
             {
-                current = point;
                 break;
             }
-            if(gp_point_line_to(canvas, point.x, point.y) == GP_FAILURE)
+            if(gp_path_line_to(graphics_path, point.x, point.y) == GP_FAILURE)
             {
                 return FIGMA_FALSE;
             }
-            current = point;
+            has_segment = FIGMA_TRUE;
         }
         break;
         case FIGMA_CANVAS_PATH_QUADRATIC_TO:
@@ -4116,12 +4115,12 @@ static figma_bool_t __figma_player_append_path(gp_canvas_t * canvas, figma_rectf
             const figma_vec2f_t p1 =
                 __figma_player_local_path_point(rect, command->p1);
             if(has_contour == FIGMA_FALSE ||
-                gp_point_quadratic_curve_to(
-                    canvas, p0.x, p0.y, p1.x, p1.y) == GP_FAILURE)
+                gp_path_quadratic_curve_to(
+                    graphics_path, p0.x, p0.y, p1.x, p1.y) == GP_FAILURE)
             {
                 return FIGMA_FALSE;
             }
-            current = p1;
+            has_segment = FIGMA_TRUE;
         }
         break;
         case FIGMA_CANVAS_PATH_CUBIC_TO:
@@ -4133,25 +4132,25 @@ static figma_bool_t __figma_player_append_path(gp_canvas_t * canvas, figma_rectf
             const figma_vec2f_t p2 =
                 __figma_player_local_path_point(rect, command->p2);
             if(has_contour == FIGMA_FALSE ||
-                gp_point_bezier_curve_to(
-                    canvas, p0.x, p0.y, p1.x, p1.y, p2.x, p2.y) ==
+                gp_path_bezier_curve_to(
+                    graphics_path, p0.x, p0.y, p1.x, p1.y, p2.x, p2.y) ==
                     GP_FAILURE)
             {
                 return FIGMA_FALSE;
             }
-            current = p2;
+            has_segment = FIGMA_TRUE;
         }
         break;
         case FIGMA_CANVAS_PATH_CLOSE:
             if(has_contour == FIGMA_TRUE)
             {
-                if(fill == FIGMA_FALSE &&
-                    __figma_player_same_point(current, start) == FIGMA_FALSE &&
-                    gp_point_line_to(canvas, start.x, start.y) == GP_FAILURE)
+                if(has_segment == FIGMA_TRUE &&
+                    gp_path_close(graphics_path) == GP_FAILURE)
                 {
                     return FIGMA_FALSE;
                 }
                 has_contour = FIGMA_FALSE;
+                has_segment = FIGMA_FALSE;
             }
             break;
         }
@@ -4165,6 +4164,7 @@ static figma_bool_t __figma_player_build_path_mesh(figma_player_t * player, figm
 {
     figma_graphics_memory_context_t context;
     gp_canvas_t * canvas = NULL;
+    gp_path_t * graphics_path = NULL;
     figma_bool_t appended = FIGMA_FALSE;
     figma_bool_t result = FIGMA_FALSE;
     size_t index;
@@ -4192,6 +4192,19 @@ static figma_bool_t __figma_player_build_path_mesh(figma_player_t * player, figm
     gp_set_curve_quality(canvas, 24);
     gp_set_ellipse_quality(canvas, 64);
     gp_set_rect_quality(canvas, 16);
+    if(gp_path_create(
+           &graphics_path,
+           &__figma_player_graphics_alloc,
+           &__figma_player_graphics_realloc,
+           &__figma_player_graphics_free,
+           &context,
+           24,
+           64) == GP_FAILURE ||
+        graphics_path == NULL)
+    {
+        gp_canvas_destroy(canvas);
+        return FIGMA_FALSE;
+    }
     if(fill == FIGMA_TRUE)
     {
         gp_begin_fill(canvas);
@@ -4205,12 +4218,20 @@ static figma_bool_t __figma_player_build_path_mesh(figma_player_t * player, figm
             continue;
         }
         if(__figma_player_append_path(
-               canvas, command->rect, &paths[index], fill) == FIGMA_FALSE)
+               graphics_path, command->rect, &paths[index]) == FIGMA_FALSE)
         {
+            gp_path_destroy(graphics_path);
             gp_canvas_destroy(canvas);
             return FIGMA_FALSE;
         }
         appended = FIGMA_TRUE;
+    }
+    if(appended == FIGMA_TRUE &&
+        gp_draw_path(canvas, graphics_path) == GP_FAILURE)
+    {
+        gp_path_destroy(graphics_path);
+        gp_canvas_destroy(canvas);
+        return FIGMA_FALSE;
     }
     if(fill == FIGMA_TRUE)
     {
@@ -4220,6 +4241,7 @@ static figma_bool_t __figma_player_build_path_mesh(figma_player_t * player, figm
     {
         result = __figma_player_render_graphics(player, canvas, command);
     }
+    gp_path_destroy(graphics_path);
     gp_canvas_destroy(canvas);
     return result;
 }
@@ -4229,6 +4251,7 @@ static figma_bool_t __figma_player_build_grouped_path_mesh(figma_player_t * play
 {
     figma_graphics_memory_context_t context;
     gp_canvas_t * canvas = NULL;
+    gp_path_t * graphics_path = NULL;
     figma_bool_t appended = FIGMA_FALSE;
     figma_bool_t result = FIGMA_FALSE;
     size_t index;
@@ -4249,6 +4272,19 @@ static figma_bool_t __figma_player_build_grouped_path_mesh(figma_player_t * play
     gp_set_curve_quality(canvas, 24);
     gp_set_ellipse_quality(canvas, 64);
     gp_set_rect_quality(canvas, 16);
+    if(gp_path_create(
+           &graphics_path,
+           &__figma_player_graphics_alloc,
+           &__figma_player_graphics_realloc,
+           &__figma_player_graphics_free,
+           &context,
+           24,
+           64) == GP_FAILURE ||
+        graphics_path == NULL)
+    {
+        gp_canvas_destroy(canvas);
+        return FIGMA_FALSE;
+    }
 
     for(index = 0u; index != pairs->size; ++index)
     {
@@ -4260,6 +4296,12 @@ static figma_bool_t __figma_player_build_grouped_path_mesh(figma_player_t * play
         {
             continue;
         }
+        if(gp_path_clear(graphics_path) == GP_FAILURE)
+        {
+            gp_path_destroy(graphics_path);
+            gp_canvas_destroy(canvas);
+            return FIGMA_FALSE;
+        }
         gp_set_color(
             canvas,
             pair->paint->color.r,
@@ -4270,8 +4312,10 @@ static figma_bool_t __figma_player_build_grouped_path_mesh(figma_player_t * play
                 __figma_player_clamp01(pair->paint->opacity)));
         gp_begin_fill(canvas);
         if(__figma_player_append_path(
-               canvas, command->rect, pair->path, FIGMA_TRUE) == FIGMA_FALSE)
+               graphics_path, command->rect, pair->path) == FIGMA_FALSE ||
+            gp_draw_path(canvas, graphics_path) == GP_FAILURE)
         {
+            gp_path_destroy(graphics_path);
             gp_canvas_destroy(canvas);
             return FIGMA_FALSE;
         }
@@ -4282,6 +4326,7 @@ static figma_bool_t __figma_player_build_grouped_path_mesh(figma_player_t * play
     {
         result = __figma_player_render_graphics(player, canvas, command);
     }
+    gp_path_destroy(graphics_path);
     gp_canvas_destroy(canvas);
     return result;
 }
