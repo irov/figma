@@ -1,5 +1,6 @@
 #include "figma/figma.h"
 
+#include "figma_graphics_object.h"
 #include "figma_internal.h"
 #include "figma_model.h"
 #include "figma_player.h"
@@ -398,17 +399,28 @@ static int __test_version_and_allocator(void)
 {
     test_allocator_state_t state = {0u, 0u, 0u};
     figma_runtime_desc_t desc;
+    gp_graphics_t * graphics = figma_graphics_object_create();
     figma_runtime_t * runtime = (figma_runtime_t *)(uintptr_t)1u;
     figma_document_t * document = (figma_document_t *)(uintptr_t)1u;
     void * aligned;
     figma_result_t result;
     const unsigned char invalid_fig[] = {0u};
 
+    TEST_CHECK(graphics != NULL);
+
     memset(&desc, 0, sizeof(desc));
     desc.allocator.alloc = &__test_alloc;
     desc.allocator.realloc = &__test_realloc;
     desc.allocator.free = &__test_free;
     desc.allocator.user_data = &state;
+
+    result = figma_runtime_create(FIGMA_SDK_VERSION, &desc, &runtime);
+    TEST_CHECK(result == FIGMA_RESULT_INVALID_ARGUMENT);
+    TEST_CHECK(runtime == NULL);
+    TEST_CHECK(state.calls == 0u);
+
+    desc.graphics = graphics;
+    runtime = (figma_runtime_t *)(uintptr_t)1u;
 
     result = figma_runtime_create(
         FIGMA_SDK_VERSION - 1u, &desc, &runtime);
@@ -451,6 +463,7 @@ static int __test_version_and_allocator(void)
         FIGMA_SDK_VERSION, NULL, NULL) == FIGMA_RESULT_INVALID_ARGUMENT);
     TEST_CHECK(figma_player_update(NULL, 0.0f) ==
         FIGMA_RESULT_INVALID_ARGUMENT);
+    gp_graphics_destroy(graphics);
     return 1;
 }
 
@@ -508,6 +521,8 @@ static int __test_player_and_atomic_ux(void)
         "{\"bindings\":[{\"nodeId\":\"label\",\"key\":\"number\","
         "\"property\":\"text\"}]}";
     static const char invalid_ux[] = "{\"bindings\":{}}";
+    figma_runtime_desc_t runtime_desc;
+    gp_graphics_t * graphics = figma_graphics_object_create();
     figma_runtime_t * runtime = NULL;
     figma_document_t * document = NULL;
     figma_player_t * player = NULL;
@@ -524,8 +539,13 @@ static int __test_player_and_atomic_ux(void)
     figma_bool_t found_text = FIGMA_FALSE;
     figma_bool_t found_persistent_track = FIGMA_FALSE;
 
+    TEST_CHECK(graphics != NULL);
+
+    memset(&runtime_desc, 0, sizeof(runtime_desc));
+    runtime_desc.graphics = graphics;
+
     TEST_CHECK(figma_runtime_create(
-        FIGMA_SDK_VERSION, NULL, &runtime) == FIGMA_RESULT_OK);
+        FIGMA_SDK_VERSION, &runtime_desc, &runtime) == FIGMA_RESULT_OK);
     document = __test_build_document(runtime);
     TEST_CHECK(document != NULL);
 
@@ -734,6 +754,7 @@ static int __test_player_and_atomic_ux(void)
     figma_player_destroy(player);
     figma_document_destroy(document);
     figma_runtime_destroy(runtime);
+    gp_graphics_destroy(graphics);
     return 1;
 }
 

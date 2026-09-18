@@ -9,6 +9,7 @@ set_target_properties(figma_dump PROPERTIES
 )
 target_include_directories(figma_dump PRIVATE
   "${FIGMA_ROOT_DIR}/sdk/src"
+  ${FIGMA_SDK_DEPENDENCY_INCLUDE_DIRS}
 )
 target_link_libraries(figma_dump PRIVATE Figma::SDK)
 target_compile_options(

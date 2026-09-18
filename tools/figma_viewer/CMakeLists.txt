@@ -19,6 +19,7 @@ if(APPLE)
   target_link_libraries(figma_viewer PRIVATE Figma::SDK freetype png_static figma_libjpeg)
   target_include_directories(figma_viewer PRIVATE
     "${FIGMA_ROOT_DIR}/sdk/src"
+    ${FIGMA_SDK_DEPENDENCY_INCLUDE_DIRS}
     "${FIGMA_ROOT_DIR}/thirdparty/libjpeg/src"
     "${FIGMA_LIBJPEG_BUILD_DIR}"
   )

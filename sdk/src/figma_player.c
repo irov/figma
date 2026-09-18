@@ -2875,6 +2875,7 @@ figma_result_t FIGMA_CALL figma_runtime_create_player(figma_runtime_t * runtime,
     player->runtime = runtime;
     player->document = document;
     player->memory = &runtime->memory;
+    player->graphics = runtime->desc.graphics;
     player->desc = *desc;
     figma_string_init(&player->start_frame_id);
     figma_string_init(&player->current_frame_id);
@@ -3758,47 +3759,11 @@ const figma_diagnostics_t * FIGMA_CALL figma_player_get_diagnostics(const figma_
     return player != NULL ? &player->diagnostics : NULL;
 }
 
-typedef struct figma_graphics_memory_context
-{
-    figma_memory_t * memory;
-} figma_graphics_memory_context_t;
-
 typedef struct figma_path_paint_pair
 {
     const figma_canvas_path_t * path;
     const figma_canvas_paint_t * paint;
 } figma_path_paint_pair_t;
-
-//////////////////////////////////////////////////////////////////////////
-static void * __figma_player_graphics_alloc(gp_size_t size, void * user_data)
-{
-    figma_graphics_memory_context_t * context =
-        (figma_graphics_memory_context_t *)user_data;
-    return context != NULL && context->memory != NULL
-        ? figma_memory_allocate(context->memory, (size_t)size)
-        : NULL;
-}
-
-//////////////////////////////////////////////////////////////////////////
-static void * __figma_player_graphics_realloc(void * ptr, gp_size_t size, void * user_data)
-{
-    figma_graphics_memory_context_t * context =
-        (figma_graphics_memory_context_t *)user_data;
-    return context != NULL && context->memory != NULL
-        ? figma_memory_reallocate(context->memory, ptr, (size_t)size)
-        : NULL;
-}
-
-//////////////////////////////////////////////////////////////////////////
-static void __figma_player_graphics_free(void * ptr, void * user_data)
-{
-    figma_graphics_memory_context_t * context =
-        (figma_graphics_memory_context_t *)user_data;
-    if(context != NULL && context->memory != NULL)
-    {
-        figma_memory_deallocate(context->memory, ptr);
-    }
-}
 
 //////////////////////////////////////////////////////////////////////////
 static figma_bool_t __figma_player_assign_command_string(figma_player_t * player, figma_string_t * output, const char * value)
@@ -3923,7 +3888,6 @@ static float __figma_player_aligned_stroke_corner_radius(float radius, float str
 //////////////////////////////////////////////////////////////////////////
 static figma_bool_t __figma_player_build_shape_mesh(figma_player_t * player, figma_render_command_t * command, figma_bool_t fill, figma_canvas_stroke_align_t stroke_align)
 {
-    figma_graphics_memory_context_t context;
     gp_canvas_t * canvas = NULL;
     figma_rectf_t rect;
     float corner_radius;
@@ -3931,14 +3895,7 @@ static figma_bool_t __figma_player_build_shape_mesh(figma_player_t * player, fig
     float stroke_width;
     figma_bool_t result;
 
-    context.memory = player->memory;
-    if(gp_canvas_create(
-           &canvas,
-           &__figma_player_graphics_alloc,
-           &__figma_player_graphics_realloc,
-           &__figma_player_graphics_free,
-           &context) == GP_FAILURE ||
-        canvas == NULL)
+    if(gp_canvas_create(player->graphics, &canvas) == GP_FAILURE || canvas == NULL)
     {
         return FIGMA_FALSE;
     }
@@ -4162,21 +4119,13 @@ static figma_bool_t __figma_player_append_path(gp_path_t * graphics_path, figma_
 //////////////////////////////////////////////////////////////////////////
 static figma_bool_t __figma_player_build_path_mesh(figma_player_t * player, figma_render_command_t * command, const figma_canvas_path_t * paths, size_t path_count, figma_bool_t fill)
 {
-    figma_graphics_memory_context_t context;
     gp_canvas_t * canvas = NULL;
     gp_path_t * graphics_path = NULL;
     figma_bool_t appended = FIGMA_FALSE;
     figma_bool_t result = FIGMA_FALSE;
     size_t index;
 
-    context.memory = player->memory;
-    if(gp_canvas_create(
-           &canvas,
-           &__figma_player_graphics_alloc,
-           &__figma_player_graphics_realloc,
-           &__figma_player_graphics_free,
-           &context) == GP_FAILURE ||
-        canvas == NULL)
+    if(gp_canvas_create(player->graphics, &canvas) == GP_FAILURE || canvas == NULL)
     {
         return FIGMA_FALSE;
     }
@@ -4192,14 +4141,7 @@ static figma_bool_t __figma_player_build_path_mesh(figma_player_t * player, figm
     gp_set_curve_quality(canvas, 24);
     gp_set_ellipse_quality(canvas, 64);
     gp_set_rect_quality(canvas, 16);
-    if(gp_path_create(
-           &graphics_path,
-           &__figma_player_graphics_alloc,
-           &__figma_player_graphics_realloc,
-           &__figma_player_graphics_free,
-           &context,
-           24,
-           64) == GP_FAILURE ||
+    if(gp_path_create(canvas, &graphics_path) == GP_FAILURE ||
         graphics_path == NULL)
     {
         gp_canvas_destroy(canvas);
@@ -4249,21 +4191,13 @@ static figma_bool_t __figma_player_build_path_mesh(figma_player_t * player, figm
 //////////////////////////////////////////////////////////////////////////
 static figma_bool_t __figma_player_build_grouped_path_mesh(figma_player_t * player, figma_render_command_t * command, const figma_array_t * pairs, float opacity)
 {
-    figma_graphics_memory_context_t context;
     gp_canvas_t * canvas = NULL;
     gp_path_t * graphics_path = NULL;
     figma_bool_t appended = FIGMA_FALSE;
     figma_bool_t result = FIGMA_FALSE;
     size_t index;
 
-    context.memory = player->memory;
-    if(gp_canvas_create(
-           &canvas,
-           &__figma_player_graphics_alloc,
-           &__figma_player_graphics_realloc,
-           &__figma_player_graphics_free,
-           &context) == GP_FAILURE ||
-        canvas == NULL)
+    if(gp_canvas_create(player->graphics, &canvas) == GP_FAILURE || canvas == NULL)
     {
         return FIGMA_FALSE;
     }
@@ -4272,14 +4206,7 @@ static figma_bool_t __figma_player_build_grouped_path_mesh(figma_player_t * play
     gp_set_curve_quality(canvas, 24);
     gp_set_ellipse_quality(canvas, 64);
     gp_set_rect_quality(canvas, 16);
-    if(gp_path_create(
-           &graphics_path,
-           &__figma_player_graphics_alloc,
-           &__figma_player_graphics_realloc,
-           &__figma_player_graphics_free,
-           &context,
-           24,
-           64) == GP_FAILURE ||
+    if(gp_path_create(canvas, &graphics_path) == GP_FAILURE ||
         graphics_path == NULL)
     {
         gp_canvas_destroy(canvas);

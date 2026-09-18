@@ -1,5 +1,7 @@
 #include "FigmaAppDelegate.h"
 
+#include "graphics/graphics.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -59,6 +61,14 @@ static NSString * missingFontsInformativeText(NSArray<NSString *> * _fonts, NSAr
     figma_runtime_t * runtime = self.runtime;
     self.runtime = nullptr;
     destroyFigmaObject(runtime);
+
+    gp_graphics_t * graphics = self.graphics;
+    self.graphics = nullptr;
+
+    if(graphics != nullptr)
+    {
+        gp_graphics_destroy(graphics);
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////

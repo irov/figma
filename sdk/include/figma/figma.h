@@ -23,12 +23,14 @@
 #   define FIGMA_CALL
 #endif
 
-#define FIGMA_SDK_VERSION 7u
+#define FIGMA_SDK_VERSION 8u
 
 typedef uint8_t figma_bool_t;
 
 #define FIGMA_FALSE ((figma_bool_t)0u)
 #define FIGMA_TRUE ((figma_bool_t)1u)
+
+struct gp_graphics_t;
 
 typedef struct figma_runtime figma_runtime_t;
 typedef struct figma_document figma_document_t;
@@ -98,9 +100,15 @@ typedef struct figma_allocator_desc
     void * user_data;
 } figma_allocator_desc_t;
 
+/*
+ * graphics is the irov/graphics object owned by the host. Every player of this
+ * runtime creates its canvases and paths from it, so it is required:
+ * figma_runtime_create returns FIGMA_RESULT_INVALID_ARGUMENT without it.
+ */
 typedef struct figma_runtime_desc
 {
     figma_allocator_desc_t allocator;
+    struct gp_graphics_t * graphics;
 } figma_runtime_desc_t;
 
 typedef struct figma_load_options

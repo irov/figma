@@ -792,6 +792,11 @@ figma_result_t FIGMA_CALL figma_runtime_create(uint32_t version, const figma_run
         return FIGMA_RESULT_INVALID_ARGUMENT;
     }
 
+    if(value.graphics == NULL)
+    {
+        return FIGMA_RESULT_INVALID_ARGUMENT;
+    }
+
     memset(&memory, 0, sizeof(memory));
     memory.allocator = value.allocator;
     instance = (figma_runtime_t *)figma_memory_allocate(&memory, sizeof(figma_runtime_t));

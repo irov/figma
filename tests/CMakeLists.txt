@@ -8,6 +8,7 @@ set_target_properties(figma_sdk_tests PROPERTIES
 )
 target_include_directories(figma_sdk_tests PRIVATE
   "${FIGMA_ROOT_DIR}/sdk/src"
+  ${FIGMA_SDK_DEPENDENCY_INCLUDE_DIRS}
 )
 target_link_libraries(figma_sdk_tests PRIVATE ${FIGMA_SDK_TEST_TARGET})
 target_compile_options(

@@ -1,6 +1,8 @@
 #include "FigmaAppDelegate.h"
 #include "FigmaViewerShared.h"
 
+#include "figma_graphics_object.h"
+
 #include <algorithm>
 #include <cstdio>
 #include <string>
@@ -10,13 +12,21 @@ int main(int argc, char ** argv)
 {
     @autoreleasepool
     {
+        gp_graphics_t * graphicsPtr = figma_graphics_object_create();
+        if(graphicsPtr == nullptr)
+        {
+            std::fprintf(stderr, "createGraphics failed\n");
+            return 1;
+        }
         figma_runtime_t * runtimePtr = nullptr;
         figma_runtime_desc_t runtimeDesc = {};
+        runtimeDesc.graphics = graphicsPtr;
         figma_result_t result = figma_runtime_create(
             FIGMA_SDK_VERSION, &runtimeDesc, &runtimePtr);
         if(result != FIGMA_RESULT_OK)
         {
             std::fprintf(stderr, "createRuntime failed: %s\n", resultToString(result));
+            gp_graphics_destroy(graphicsPtr);
             return 1;
         }
         figma_document_t * documentPtr = nullptr;
@@ -31,6 +41,7 @@ int main(int argc, char ** argv)
             {
                 std::fprintf(stderr, "load viewer document failed: %s\n", resultToString(result));
                 figma_runtime_destroy(runtimePtr);
+                gp_graphics_destroy(graphicsPtr);
                 return 1;
             }
         }
@@ -40,6 +51,7 @@ int main(int argc, char ** argv)
 
         FigmaAppDelegate * delegate = [[FigmaAppDelegate alloc] init];
         delegate.runtime = runtimePtr;
+        delegate.graphics = graphicsPtr;
         delegate.document = documentPtr;
         delegate.player = playerPtr;
         [NSApp setDelegate:delegate];

@@ -6,6 +6,7 @@
 @property(nonatomic, strong) NSWindow * window;
 @property(nonatomic, strong) FigmaViewerView * view;
 @property(nonatomic) figma_runtime_t * runtime;
+@property(nonatomic) gp_graphics_t * graphics;
 @property(nonatomic) figma_document_t * document;
 @property(nonatomic) figma_player_t * player;
 @property(nonatomic, strong) NSTimer * timer;

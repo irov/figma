@@ -2,6 +2,8 @@
 
 #include "figma_model.h"
 
+#include "graphics/graphics.h"
+
 typedef struct figma_binding_override
 {
     figma_string_t key;
@@ -62,6 +64,7 @@ struct figma_player
     figma_runtime_t * runtime;
     figma_document_t * document;
     figma_memory_t * memory;
+    gp_graphics_t * graphics;
     figma_player_desc_t desc;
     figma_string_t start_frame_id;
     figma_action_router_t action_router;

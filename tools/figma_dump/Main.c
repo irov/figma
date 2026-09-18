@@ -1,4 +1,5 @@
 #include "figma/figma.h"
+#include "figma_graphics_object.h"
 #include "figma_inspection.h"
 
 #include <float.h>
@@ -1277,6 +1278,7 @@ int main(int argc, char ** argv)
     figma_document_t * document = NULL;
     figma_player_t * player = NULL;
     figma_runtime_desc_t runtime_desc;
+    gp_graphics_t * graphics = NULL;
     figma_load_options_t load_options;
     figma_inspection_document_desc_t document_desc;
     const figma_inspection_node_t * root;
@@ -1299,6 +1301,13 @@ int main(int argc, char ** argv)
         __dump_usage(argv[0]);
         return EXIT_FAILURE;
     }
+    graphics = figma_graphics_object_create();
+    if(graphics == NULL)
+    {
+        fprintf(stderr, "createGraphics failed\n");
+        goto cleanup;
+    }
+    runtime_desc.graphics = graphics;
     result =
         figma_runtime_create(FIGMA_SDK_VERSION, &runtime_desc, &runtime);
     if(result != FIGMA_RESULT_OK)
@@ -1466,6 +1475,10 @@ cleanup:
     figma_player_destroy(player);
     figma_document_destroy(document);
     figma_runtime_destroy(runtime);
+    if(graphics != NULL)
+    {
+        gp_graphics_destroy(graphics);
+    }
     free(matches.data);
     free(ux_data.data);
     free(fig_data.data);
